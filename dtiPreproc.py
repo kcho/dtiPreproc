@@ -37,7 +37,7 @@ def dicomConversion(outputDir,DTIdirectories):
     # Dicom conversion
     if len(os.listdir(outputDir)) == 0: # if empty
         print '\tDicom Conversion'
-        print '\t----------------'
+        print '\t--------------------------------'
         for DTIdirectory in DTIdirectories:
             command = '/ccnc_bin/mricron/dcm2nii -o {outputDir} \
                         {DTIdirectory}'.format(
@@ -60,11 +60,11 @@ def nameChange(outputDir):
         shutil.move(os.path.join(outputDir,P2A_b0),os.path.join(outputDir,'P2A_b0.nii.gz'))
     except:
         pass
-def extractB0images(outputDir):
+def extractB0images(outputDir,full):
     #Extract B0 images from the data
     print '\tExtract B0 images'
-    print '\t----------------'
-    if len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) !=  9:
+    print '\t--------------------------------'
+    if full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
         b0Nums = [0,1,10,19,28,37,46,55,64]
 
         for b0Num in b0Nums:
@@ -72,24 +72,56 @@ def extractB0images(outputDir):
                     {outputDir}/A2P_b0_{0} \
                     {0} 1'.format(b0Num,
                     outputDir=outputDir)
-            print os.popen(command).read()+'.',
+            os.popen(command).read()
+    elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
+        b0Nums = [0,1] # Two B0s from A >> P
+        for b0Num in b0Nums:
+            command = 'fslroi {outputDir}/data \
+                    {outputDir}/A2P_b0_{0} \
+                    {0} 1'.format(b0Num,
+                    outputDir=outputDir)
+            os.popen(command).read()
 
     # Merge B0s
     if not os.path.isfile(os.path.join(
                             outputDir,
                             'b0_images.nii.gz')):
-        command = 'fslmerge -t {outputDir}/b0_images \
-                {outputDir}/*_b0*'.format(
-                                outputDir=outputDir)
-        print os.popen(command).read()
+        if full:
+            command = 'fslmerge -t {outputDir}/b0_images \
+                    {outputDir}/*_b0*'.format(
+                                    outputDir=outputDir)
+            os.popen(command).read()
+        else:
+            # Two images of P2A b0
+            b0Nums = [0,1] # Two B0s from A >> P
+            for b0Num in b0Nums:
+                command = 'fslroi {outputDir}/P2A_b0 \
+                        {outputDir}/P2A_b0_{0} \
+                        {0} 1'.format(b0Num,
+                        outputDir=outputDir)
+                os.popen(command).read()
 
-def writeAcqParams(outputDir):
+            #merge above two mean images
+            command = 'fslmerge -t {outputDir}/b0_images \
+                    {outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
+                                    outputDir=outputDir)
+            fslmathsOutput = os.popen(command).read()
+
+
+def writeAcqParams(outputDir,full):
+    '''
+    A >> P : 0 -1 0
+    A << P : 0 1 0
+    4th number : 0.69 ms * 112 * 0.001
+    '''
+
     print '\tWrite Acquisition Parameters'
-    print '\t----------------'
+    print '\t--------------------------------'
     if not os.path.isfile(os.path.join(outputDir,
         'acqparams.txt')):
         # Writing acqparams.txt
-        acqparams = '''0 -1 0 0.0773
+        if full:
+            acqparams = '''0 -1 0 0.0773
     0 -1 0 0.0773
     0 -1 0 0.0773
     0 -1 0 0.0773
@@ -106,16 +138,23 @@ def writeAcqParams(outputDir):
     0 1 0 0.0773
     0 1 0 0.0773
     0 1 0 0.0773'''
+        else:
+            acqparams = '''0 -1 0 0.0773
+    0 -1 0 0.0773
+    0 1 0 0.0773
+    0 1 0 0.0773'''
+
         with open(os.path.join(outputDir,
                                'acqparams.txt'),'w') as f:
             f.write(acqparams)
 
 def makeEvenNumB0(outputDir):
     print '\tMake the slice number even'
-    print '\t---------------------------'
+    print '\t--------------------------------'
     # Make the slice number even
     if not os.path.isfile(os.path.join(outputDir,
         'b0_images_even.nii.gz' )):
+
         # split B0
         command = 'fslslice {outputDir}/b0_images'.format(outputDir=outputDir)
         fslsliceOutput = os.popen(command).read()
@@ -130,14 +169,18 @@ def makeEvenNumB0(outputDir):
                 slicedImages=' '.join(slicedImages[:-1]))
         fslmergeOutput = os.popen(command).read()
 
+        #Remove splitImages
+        for img in slicedImages:
+            os.remove(img)
+
 def topup(outputDir):
+    print '\tRunning Topup, FSL'
+    print '\t---------------------------'
     if os.path.isfile(os.path.join(
         outputDir,
         'unwarped_images.nii.gz')):
         pass
     else:
-        print '\tRunning Topup, FSL'
-        print '\t---------------------------'
         command = 'topup --imain={outputDir}/b0_images_even \
                 --datain={outputDir}/acqparams.txt \
                 --config=b02b0.cnf \
@@ -148,6 +191,65 @@ def topup(outputDir):
 
         print os.popen(command).read()
 
+
+def applytopup(outputDir):
+    print '\tApply Topup'
+    print '\t----------------'
+    if os.path.isfile(os.path.join(
+        outputDir,
+        'data_topup.nii.gz')):
+        pass
+    else:
+        command = 'applytopup \
+                --imain={outputDir}/data.nii.gz \
+                --datain={outputDir}/acqparams.txt \
+                --inindex=1 \
+                --topup={outputDir}/topup_results \
+                --out={outputDir}/data_topup.nii.gz \
+                --method=jac'.format(outputDir=outputDir)
+        applyTopUpOutput = os.popen(command).read()
+
+def eddy(outputDir):
+    print '\tEddy Correction'
+    print '\t----------------'
+    # mean of the corrected image
+    mean(os.path.join(outputDir,'unwarped_images.nii.gz'),
+            os.path.join(outputDir,'unwarped_images_mean'))
+
+    # bet
+    os.system('bet {inImg} {output} -m'.format(
+        inImg = os.path.join(outputDir,'unwarped_images_mean'),
+        output = os.path.join(outputDir,'unwarped_images_mean_brain')))
+
+    # create an index file
+    index = ['1']*72
+    index = ' '.join(index)
+
+    with open(os.path.join(outputDir,
+                           'index.txt'),'w') as f:
+        f.write(index)
+
+    #eddy
+    command = 'eddy \
+            --imain={outputDir}/data_topup.nii.gz \
+            --mask={outputDir}/unwarped_images_mean_brain \
+            --acqp={outputDir}/acqparams.txt \
+            --index={outputDir}/index.txt \
+            --bvecs={outputDir}/bvecs \
+            --bvals={outputDir}/bvals \
+            --topup={outputDir}/my_topup_results \
+            --out={outputDir}/eddy_corrected_data'.format(
+                    outputDir=outputDir)
+    eddyOutput = os.popen(command).read()
+    print eddyOutput
+
+def mean(srcImg,trgImg):
+    os.system('fslmaths {src} -Tmean {out}'.format(
+        src=srcImg,
+        out=trgImg))
+
+
+
 def main(args):
 
     ################################################
@@ -156,7 +258,7 @@ def main(args):
     DTIdirectories = getDTIdirectory(args.directory)
 
     ################################################
-    # OutputDir specification
+    # outputDir specification
     ################################################
     outputDir = os.path.join(args.directory,'DTIpreproc')
 
@@ -165,14 +267,29 @@ def main(args):
     ################################################
     dicomConversion(outputDir,DTIdirectories)
     nameChange(outputDir)
-    extractB0images(outputDir)
-    writeAcqParams(outputDir)
+    extractB0images(outputDir,args.full)
+    writeAcqParams(outputDir,args.full)
     makeEvenNumB0(outputDir)
 
     ################################################
     # Running topup
     ################################################
     topup(outputDir)
+
+    ################################################
+    # applytopup
+    ################################################
+    applytopup(outputDir)
+
+    ################################################
+    # Eddy
+    ################################################
+    eddy(outputDir)
+
+    ################################################
+    # DTIFIT
+    ################################################
+    eddy(outputDir)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -183,9 +300,8 @@ if __name__=='__main__':
                         eg) {codeName} --dir /Users/kevin/NOR04_CKI
                         eg) {codeName} --dir /Users/kevin/NOR04_CKI
                     '''.format(codeName=os.path.basename(__file__))))
-
-            #epilog="By Kevin, 26th May 2014")
-    parser.add_argument('-dir','--directory',help='Data directory location, default = pwd',default=os.getcwd())
+    parser.add_argument('-dir','--directory',help='Data directory location', default=os.getcwd())
+    parser.add_argument('-f','--full',help='Process all B0', default = False)
     args = parser.parse_args()
     main(args)
 
