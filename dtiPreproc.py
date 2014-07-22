@@ -9,8 +9,6 @@ import sys
 import argparse
 
 
-# In[83]:
-
 def getDTIdirectory(directory):
     '''
     Input : subject directory location
@@ -248,6 +246,15 @@ def mean(srcImg,trgImg):
         src=srcImg,
         out=trgImg))
 
+def dtifit(outputDir):
+    command = 'dtifit \
+            -k {outputDir}/data \
+            -m {outputDir}/nodif_brain_mask \
+            -r {outputDir}/bvecs \
+            -b {outputDir}/bvals \
+            -o {outputDir}/dti'.format(outputDir=outputDir)
+    print os.popen(command).read()
+
 
 
 def main(args):
@@ -289,7 +296,9 @@ def main(args):
     ################################################
     # DTIFIT
     ################################################
-    eddy(outputDir)
+    if args.dtifit:
+        dtifit(outputDir)
+
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -302,6 +311,7 @@ if __name__=='__main__':
                     '''.format(codeName=os.path.basename(__file__))))
     parser.add_argument('-dir','--directory',help='Data directory location', default=os.getcwd())
     parser.add_argument('-f','--full',help='Process all B0', default = False)
+    parser.add_argument('-d','--dtifit',help='Create FA maps', default = False)
     args = parser.parse_args()
     main(args)
 
