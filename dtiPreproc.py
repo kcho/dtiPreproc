@@ -124,7 +124,7 @@ def extractB0images(outputDir,full):
                     {0} 1'.format(b0Num,
                     outputDir=outputDir)
             os.popen(command).read()
-    elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
+    elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 2:
         b0Nums = [0,1] # Two B0s from A >> P
         for b0Num in b0Nums:
             command = 'fslroi {outputDir}/data_even \
@@ -254,7 +254,7 @@ def applytopup(outputDir):
                 --out=hifi_nodif.nii.gz \
                 --method=jac'.format(outputDir=outputDir,
                         images = ','.join(imgIndexDict.keys()),
-                        indexNum = ','.join(imgIndexDict.values()))
+                        indexNum = ','.join([str(x) for x in imgIndexDict.values()]))
         applyTopUpOutput = os.popen(command).read()
         os.chdir(pwd)
 
@@ -370,6 +370,7 @@ if __name__=='__main__':
     parser.add_argument('-dir','--directory',help='Data directory location', default=os.getcwd())
     parser.add_argument('-f','--full',help='Process all B0', default = False)
     parser.add_argument('-d','--dtifit',help='Create FA maps', default = False)
+    parser.add_argument('-o','--old',help='Short version', default = False)
     args = parser.parse_args()
     main(args)
 
