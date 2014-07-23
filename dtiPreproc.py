@@ -223,7 +223,7 @@ def eddy(outputDir):
         output = os.path.join(outputDir,'unwarped_images_mean_brain')))
 
     # create an index file
-    index = ['1']*72
+    index = ['1']*73
     index = ' '.join(index)
 
     with open(os.path.join(outputDir,
