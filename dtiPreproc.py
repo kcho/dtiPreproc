@@ -64,6 +64,30 @@ def makeEvenNumB0(outputDir):
     print '\t--------------------------------'
     # Make the slice number even
     if not os.path.isfile(os.path.join(outputDir,
+        'P2A_b0_even.nii.gz' )):
+
+        # split B0
+        command = 'fslslice {outputDir}/P2A_b0.nii.gz'.format(outputDir=outputDir)
+        fslsliceOutput = os.popen(command).read()
+
+        # merge B0
+        slicedImages = [os.path.join(outputDir,x) for x in os.listdir(outputDir) if re.search('slice',x)]
+
+        command = 'fslmerge -z \
+                {outputDir}/P2A_b0_even \
+                {slicedImages}'.format(
+                outputDir=outputDir,
+                slicedImages=' '.join(slicedImages[:-1]))
+        fslmergeOutput = os.popen(command).read()
+
+        #Remove splitImages
+        for img in slicedImages:
+            os.remove(img)
+
+        shutil.move(os.path.join(outputDir,'P2A_b0.nii.gz'),
+                    os.path.join(outputDir,'P2A_b0_orig.nii.gz'))
+
+    if not os.path.isfile(os.path.join(outputDir,
         'data_even.nii.gz' )):
 
         # split B0
@@ -122,7 +146,7 @@ def extractB0images(outputDir,full):
             # Two images of P2A b0
             b0Nums = [0,1] # Two B0s from A >> P
             for b0Num in b0Nums:
-                command = 'fslroi {outputDir}/P2A_b0 \
+                command = 'fslroi {outputDir}/P2A_b0_even \
                         {outputDir}/P2A_b0_{0} \
                         {0} 1'.format(b0Num,
                         outputDir=outputDir)
