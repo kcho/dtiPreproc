@@ -222,41 +222,55 @@ def topup(outputDir):
 def applytopup(outputDir):
     print '\tApply Topup'
     print '\t--------------------------------'
+    #acqparams line number
+    with open(os.path.join(outputDir,
+                           'acqparams.txt'),'r') as f:
+        a = f.readlines()
+        maxNum = len(a)
+
     if os.path.isfile(os.path.join(
         outputDir,
         'data_topup.nii.gz')):
         pass
     else:
+        A2P_P2A_list=[x for x in os.listdir(outputDir) if re.match(
+            '[AP]2[PA]_b0_\d+.nii.gz',x)]
+        imgIndexDict={}
+        for img in A2P_P2A_list:
+            if img.startswith('A') and imgIndexDict=={}:
+                imgIndexDict[img]=1
+            elif img.startswith('P'):
+                imgIndexDict[img]=maxNum
+            if len(imgIndexDict)==2:
+                break
+
         pwd = os.getcwd()
         os.chdir(outputDir)
         command = 'applytopup \
-                --imain=data_even.nii.gz \
+                --imain={images} \
                 --datain=acqparams.txt \
-                --inindex=1 \
+                --inindex={indexNum} \
                 --topup=topup_results \
                 --out=data_topup.nii.gz \
-                --method=jac'.format(outputDir=outputDir)
+                --method=jac'.format(outputDir=outputDir,
+                        images = ','.join(A2P_P2A_list),
+                        maxNum=maxNum)
         applyTopUpOutput = os.popen(command).read()
         os.chdir(pwd)
 
+                    {outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
 def eddy(outputDir):
     print '\tEddy Correction'
     print '\t--------------------------------'
 
-    # due to the slice number problem,
-    # extract B0 from applytopup output
-    os.system('fslroi {outputDir}/data_topup.nii.gz \
-            {outputDir}/data_topup_nodif 0 2'.format(
-                outputDir=outputDir))
-
     # mean of the corrected image
-    mean(os.path.join(outputDir,'data_topup_nodif'),
-            os.path.join(outputDir,'data_topup_nodif_mean'))
+    mean(os.path.join(outputDir,'b0_images'),
+            os.path.join(outputDir,'b0_images_mean'))
 
     # bet
     os.system('bet {inImg} {output} -m'.format(
-        inImg = os.path.join(outputDir,'data_topup_nodif_mean'),
-        output = os.path.join(outputDir,'data_topup_nodif_mean_brain')))
+        inImg = os.path.join(outputDir,'b0_images_mean'),
+        output = os.path.join(outputDir,'b0_images_mean_brain')))
 
     # create an index file
     index = ['1']*73
@@ -269,7 +283,7 @@ def eddy(outputDir):
     #eddy
     command = 'eddy \
             --imain={outputDir}/data_topup.nii.gz \
-            --mask={outputDir}/data_topup_nodif_mean_brain_mask \
+            --mask={outputDir}/b0_images_mean_brain_mask \
             --acqp={outputDir}/acqparams.txt \
             --index={outputDir}/index.txt \
             --bvecs={outputDir}/bvecs \
@@ -327,7 +341,8 @@ def main(args):
     ################################################
     # applytopup
     ################################################
-    applytopup(outputDir)
+    if args.applytopup:
+        applytopup(outputDir)
 
     ################################################
     # Eddy
@@ -353,6 +368,7 @@ if __name__=='__main__':
     parser.add_argument('-dir','--directory',help='Data directory location', default=os.getcwd())
     parser.add_argument('-f','--full',help='Process all B0', default = False)
     parser.add_argument('-d','--dtifit',help='Create FA maps', default = False)
+    parser.add_argument('-a','--applytopup',help='Apply topup to data.nii.gz', default = False)
     args = parser.parse_args()
     main(args)
 
