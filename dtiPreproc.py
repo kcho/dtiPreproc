@@ -251,45 +251,48 @@ def applytopup(outputDir):
                 --datain=acqparams.txt \
                 --inindex={indexNum} \
                 --topup=topup_results \
-                --out=data_topup.nii.gz \
+                --out=hifi_nodif.nii.gz \
                 --method=jac'.format(outputDir=outputDir,
-                        images = ','.join(A2P_P2A_list),
-                        maxNum=maxNum)
+                        images = ','.join(imgIndexDict.keys()),
+                        indexNum = ','.join(imgIndexDict.values()))
         applyTopUpOutput = os.popen(command).read()
         os.chdir(pwd)
 
-                    {outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
 def eddy(outputDir):
     print '\tEddy Correction'
     print '\t--------------------------------'
 
-    # mean of the corrected image
-    mean(os.path.join(outputDir,'b0_images'),
-            os.path.join(outputDir,'b0_images_mean'))
+    ## mean of the corrected image
+    #mean(os.path.join(outputDir,'b0_images'),
+            #os.path.join(outputDir,'b0_images_mean'))
 
     # bet
-    os.system('bet {inImg} {output} -m'.format(
-        inImg = os.path.join(outputDir,'b0_images_mean'),
-        output = os.path.join(outputDir,'b0_images_mean_brain')))
+    os.system('bet {inImg} {output} -m -f 0.2'.format(
+        inImg = os.path.join(outputDir,'hifi_nodif'),
+        output = os.path.join(outputDir,'hifi_nodif_brain')))
+    #os.system('bet {inImg} {output} -m'.format(
+        #inImg = os.path.join(outputDir,'b0_images_mean'),
+        #output = os.path.join(outputDir,'b0_images_mean_brain')))
 
     # create an index file
     index = ['1']*73
     index = ' '.join(index)
 
-    with open(os.path.join(outputDir,
-                           'index.txt'),'w') as f:
+    with open(os.path.join(outputDir,'index.txt'),'w') as f:
         f.write(index)
 
     #eddy
     command = 'eddy \
-            --imain={outputDir}/data_topup.nii.gz \
-            --mask={outputDir}/b0_images_mean_brain_mask \
+            --imain={outputDir}/data_even.nii.gz \
+            --mask={outputDir}/hifi_nodif_brain_mask \
             --acqp={outputDir}/acqparams.txt \
             --index={outputDir}/index.txt \
             --bvecs={outputDir}/bvecs \
             --bvals={outputDir}/bvals \
+            --fwhm=0 \
+            --flm=quadratic \
             --topup={outputDir}/topup_results \
-            --out={outputDir}/eddy_corrected_data'.format(
+            --out={outputDir}/eddy_unwarped_images'.format(
                     outputDir=outputDir)
     eddyOutput = os.popen(command).read()
     print eddyOutput
@@ -303,7 +306,7 @@ def dtifit(outputDir):
     print '\tDTIFIT : scalar map calculation'
     print '\t--------------------------------'
     command = 'dtifit \
-            -k {outputDir}/eddy_corrected_data \
+            -k {outputDir}/eddy_unwarped_images\
             -m {outputDir}/nodif_brain_mask \
             -r {outputDir}/bvecs \
             -b {outputDir}/bvals \
