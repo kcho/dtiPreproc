@@ -58,6 +58,35 @@ def nameChange(outputDir):
         shutil.move(os.path.join(outputDir,P2A_b0),os.path.join(outputDir,'P2A_b0.nii.gz'))
     except:
         pass
+
+def makeEvenNumB0(outputDir):
+    print '\tMake the slice number even'
+    print '\t--------------------------------'
+    # Make the slice number even
+    if not os.path.isfile(os.path.join(outputDir,
+        'data_even.nii.gz' )):
+
+        # split B0
+        command = 'fslslice {outputDir}/data.nii.gz'.format(outputDir=outputDir)
+        fslsliceOutput = os.popen(command).read()
+
+        # merge B0
+        slicedImages = [os.path.join(outputDir,x) for x in os.listdir(outputDir) if re.search('slice',x)]
+
+        command = 'fslmerge -z \
+                {outputDir}/data_even \
+                {slicedImages}'.format(
+                outputDir=outputDir,
+                slicedImages=' '.join(slicedImages[:-1]))
+        fslmergeOutput = os.popen(command).read()
+
+        #Remove splitImages
+        for img in slicedImages:
+            os.remove(img)
+
+        shutil.move(os.path.join(outputDir,'data.nii.gz'),
+                    os.path.join(outputDir,'data_orig.nii.gz'))
+
 def extractB0images(outputDir,full):
     #Extract B0 images from the data
     print '\tExtract B0 images'
@@ -66,7 +95,7 @@ def extractB0images(outputDir,full):
         b0Nums = [0,1,10,19,28,37,46,55,64]
 
         for b0Num in b0Nums:
-            command = 'fslroi {outputDir}/data \
+            command = 'fslroi {outputDir}/data_even \
                     {outputDir}/A2P_b0_{0} \
                     {0} 1'.format(b0Num,
                     outputDir=outputDir)
@@ -74,7 +103,7 @@ def extractB0images(outputDir,full):
     elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
         b0Nums = [0,1] # Two B0s from A >> P
         for b0Num in b0Nums:
-            command = 'fslroi {outputDir}/data \
+            command = 'fslroi {outputDir}/data_even \
                     {outputDir}/A2P_b0_{0} \
                     {0} 1'.format(b0Num,
                     outputDir=outputDir)
@@ -146,30 +175,6 @@ def writeAcqParams(outputDir,full):
                                'acqparams.txt'),'w') as f:
             f.write(acqparams)
 
-def makeEvenNumB0(outputDir):
-    print '\tMake the slice number even'
-    print '\t--------------------------------'
-    # Make the slice number even
-    if not os.path.isfile(os.path.join(outputDir,
-        'b0_images_even.nii.gz' )):
-
-        # split B0
-        command = 'fslslice {outputDir}/b0_images'.format(outputDir=outputDir)
-        fslsliceOutput = os.popen(command).read()
-
-        # merge B0
-        slicedImages = [os.path.join(outputDir,x) for x in os.listdir(outputDir) if re.search('slice',x)]
-
-        command = 'fslmerge -z \
-                {outputDir}/b0_images_even \
-                {slicedImages}'.format(
-                outputDir=outputDir,
-                slicedImages=' '.join(slicedImages[:-1]))
-        fslmergeOutput = os.popen(command).read()
-
-        #Remove splitImages
-        for img in slicedImages:
-            os.remove(img)
 
 def topup(outputDir):
     print '\tRunning Topup, FSL'
@@ -201,7 +206,7 @@ def applytopup(outputDir):
         pwd = os.getcwd()
         os.chdir(outputDir)
         command = 'applytopup \
-                --imain=data.nii.gz \
+                --imain=data_even.nii.gz \
                 --datain=acqparams.txt \
                 --inindex=1 \
                 --topup=topup_results \
@@ -245,7 +250,7 @@ def eddy(outputDir):
             --index={outputDir}/index.txt \
             --bvecs={outputDir}/bvecs \
             --bvals={outputDir}/bvals \
-            --topup={outputDir}/my_topup_results \
+            --topup={outputDir}/topup_results \
             --out={outputDir}/eddy_corrected_data'.format(
                     outputDir=outputDir)
     eddyOutput = os.popen(command).read()
@@ -260,7 +265,7 @@ def dtifit(outputDir):
     print '\tDTIFIT : scalar map calculation'
     print '\t--------------------------------'
     command = 'dtifit \
-            -k {outputDir}/data \
+            -k {outputDir}/eddy_corrected_data \
             -m {outputDir}/nodif_brain_mask \
             -r {outputDir}/bvecs \
             -b {outputDir}/bvals \
@@ -286,9 +291,9 @@ def main(args):
     ################################################
     dicomConversion(outputDir,DTIdirectories)
     nameChange(outputDir)
+    makeEvenNumB0(outputDir)
     extractB0images(outputDir,args.full)
     writeAcqParams(outputDir,args.full)
-    makeEvenNumB0(outputDir)
 
     ################################################
     # Running topup
