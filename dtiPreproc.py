@@ -213,14 +213,21 @@ def applytopup(outputDir):
 def eddy(outputDir):
     print '\tEddy Correction'
     print '\t--------------------------------'
+
+    # due to the slice number problem,
+    # extract B0 from applytopup output
+    os.system('fslroi {outputDir}/data_topup.nii.gz \
+            {outputDir}/data_topup_nodif 0 2'.format(
+                outputDir=outputDir))
+
     # mean of the corrected image
-    mean(os.path.join(outputDir,'unwarped_images.nii.gz'),
-            os.path.join(outputDir,'unwarped_images_mean'))
+    mean(os.path.join(outputDir,'data_topup_nodif'),
+            os.path.join(outputDir,'data_topup_nodif_mean'))
 
     # bet
     os.system('bet {inImg} {output} -m'.format(
-        inImg = os.path.join(outputDir,'unwarped_images_mean'),
-        output = os.path.join(outputDir,'unwarped_images_mean_brain')))
+        inImg = os.path.join(outputDir,'data_topup_nodif_mean'),
+        output = os.path.join(outputDir,'data_topup_nodif_mean_brain')))
 
     # create an index file
     index = ['1']*73
@@ -233,7 +240,7 @@ def eddy(outputDir):
     #eddy
     command = 'eddy \
             --imain={outputDir}/data_topup.nii.gz \
-            --mask={outputDir}/unwarped_images_mean_brain_mask \
+            --mask={outputDir}/data_topup_nodif_mean_brain_mask \
             --acqp={outputDir}/acqparams.txt \
             --index={outputDir}/index.txt \
             --bvecs={outputDir}/bvecs \
