@@ -233,7 +233,7 @@ def eddy(outputDir):
     #eddy
     command = 'eddy \
             --imain={outputDir}/data_topup.nii.gz \
-            --mask={outputDir}/unwarped_images_mean_brain \
+            --mask={outputDir}/unwarped_images_mean_brain_mask \
             --acqp={outputDir}/acqparams.txt \
             --index={outputDir}/index.txt \
             --bvecs={outputDir}/bvecs \
