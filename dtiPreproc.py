@@ -173,7 +173,7 @@ def makeEvenNumB0(outputDir):
 
 def topup(outputDir):
     print '\tRunning Topup, FSL'
-    print '\t---------------------------'
+    print '\t--------------------------------'
     if os.path.isfile(os.path.join(
         outputDir,
         'unwarped_images.nii.gz')):
@@ -192,24 +192,27 @@ def topup(outputDir):
 
 def applytopup(outputDir):
     print '\tApply Topup'
-    print '\t----------------'
+    print '\t--------------------------------'
     if os.path.isfile(os.path.join(
         outputDir,
         'data_topup.nii.gz')):
         pass
     else:
+        pwd = os.getcwd()
+        os.chdir(outputDir)
         command = 'applytopup \
-                --imain={outputDir}/data.nii.gz \
-                --datain={outputDir}/acqparams.txt \
+                --imain=data.nii.gz \
+                --datain=acqparams.txt \
                 --inindex=1 \
-                --topup={outputDir}/topup_results \
-                --out={outputDir}/data_topup.nii.gz \
+                --topup=topup_results \
+                --out=data_topup.nii.gz \
                 --method=jac'.format(outputDir=outputDir)
         applyTopUpOutput = os.popen(command).read()
+        os.chdir(pwd)
 
 def eddy(outputDir):
     print '\tEddy Correction'
-    print '\t----------------'
+    print '\t--------------------------------'
     # mean of the corrected image
     mean(os.path.join(outputDir,'unwarped_images.nii.gz'),
             os.path.join(outputDir,'unwarped_images_mean'))
@@ -247,6 +250,8 @@ def mean(srcImg,trgImg):
         out=trgImg))
 
 def dtifit(outputDir):
+    print '\tDTIFIT : scalar map calculation'
+    print '\t--------------------------------'
     command = 'dtifit \
             -k {outputDir}/data \
             -m {outputDir}/nodif_brain_mask \
