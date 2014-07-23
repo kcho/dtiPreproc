@@ -208,7 +208,7 @@ def topup(outputDir):
         'unwarped_images.nii.gz')):
         pass
     else:
-        command = 'topup --imain={outputDir}/b0_images_even \
+        command = 'topup --imain={outputDir}/b0_images \
                 --datain={outputDir}/acqparams.txt \
                 --config=b02b0.cnf \
                 --out={outputDir}/topup_results \
