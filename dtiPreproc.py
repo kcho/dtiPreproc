@@ -344,8 +344,7 @@ def main(args):
     ################################################
     # applytopup
     ################################################
-    if args.applytopup:
-        applytopup(outputDir)
+    applytopup(outputDir)
 
     ################################################
     # Eddy
@@ -371,7 +370,6 @@ if __name__=='__main__':
     parser.add_argument('-dir','--directory',help='Data directory location', default=os.getcwd())
     parser.add_argument('-f','--full',help='Process all B0', default = False)
     parser.add_argument('-d','--dtifit',help='Create FA maps', default = False)
-    parser.add_argument('-a','--applytopup',help='Apply topup to data.nii.gz', default = False)
     args = parser.parse_args()
     main(args)
 
