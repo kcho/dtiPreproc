@@ -111,52 +111,60 @@ def makeEvenNumB0(outputDir):
         shutil.move(os.path.join(outputDir,'data.nii.gz'),
                     os.path.join(outputDir,'data_orig.nii.gz'))
 
-def extractB0images(outputDir,full):
+def extractB0images(outputDir,full,old):
     #Extract B0 images from the data
     print '\tExtract B0 images'
     print '\t--------------------------------'
-    if full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
-        b0Nums = [0,1,10,19,28,37,46,55,64]
+    if old:
+        command = 'fslroi {outputDir}/data.nii.gz \
+                {outputDir}/nodif.nii.gz \
+                {0} 1'.format(b0Num,
+                outputDir=outputDir)
+        os.popen(command).read()
 
-        for b0Num in b0Nums:
-            command = 'fslroi {outputDir}/data_even \
-                    {outputDir}/A2P_b0_{0} \
-                    {0} 1'.format(b0Num,
-                    outputDir=outputDir)
-            os.popen(command).read()
-    elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 2:
-        b0Nums = [0,1] # Two B0s from A >> P
-        for b0Num in b0Nums:
-            command = 'fslroi {outputDir}/data_even \
-                    {outputDir}/A2P_b0_{0} \
-                    {0} 1'.format(b0Num,
-                    outputDir=outputDir)
-            os.popen(command).read()
+    else:
+        if full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
+            b0Nums = [0,1,10,19,28,37,46,55,64]
 
-    # Merge B0s
-    if not os.path.isfile(os.path.join(
-                            outputDir,
-                            'b0_images.nii.gz')):
-        if full:
-            command = 'fslmerge -t {outputDir}/b0_images \
-                    {outputDir}/*_b0*'.format(
-                                    outputDir=outputDir)
-            os.popen(command).read()
-        else:
-            # Two images of P2A b0
+            for b0Num in b0Nums:
+                command = 'fslroi {outputDir}/data_even \
+                        {outputDir}/A2P_b0_{0} \
+                        {0} 1'.format(b0Num,
+                        outputDir=outputDir)
+                os.popen(command).read()
+        elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 2:
             b0Nums = [0,1] # Two B0s from A >> P
             for b0Num in b0Nums:
-                command = 'fslroi {outputDir}/P2A_b0_even \
-                        {outputDir}/P2A_b0_{0} \
+                command = 'fslroi {outputDir}/data_even \
+                        {outputDir}/A2P_b0_{0} \
                         {0} 1'.format(b0Num,
                         outputDir=outputDir)
                 os.popen(command).read()
 
-            #merge above two mean images
-            command = 'fslmerge -t {outputDir}/b0_images \
-                    {outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
-                                    outputDir=outputDir)
-            fslmathsOutput = os.popen(command).read()
+        # Merge B0s
+        if not os.path.isfile(os.path.join(
+                                outputDir,
+                                'b0_images.nii.gz')):
+            if full:
+                command = 'fslmerge -t {outputDir}/b0_images \
+                        {outputDir}/*_b0*'.format(
+                                        outputDir=outputDir)
+                os.popen(command).read()
+            else:
+                # Two images of P2A b0
+                b0Nums = [0,1] # Two B0s from A >> P
+                for b0Num in b0Nums:
+                    command = 'fslroi {outputDir}/P2A_b0_even \
+                            {outputDir}/P2A_b0_{0} \
+                            {0} 1'.format(b0Num,
+                            outputDir=outputDir)
+                    os.popen(command).read()
+
+                #merge above two mean images
+                command = 'fslmerge -t {outputDir}/b0_images \
+                        {outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
+                                        outputDir=outputDir)
+                fslmathsOutput = os.popen(command).read()
 
 
 def writeAcqParams(outputDir,full):
@@ -216,7 +224,7 @@ def topup(outputDir):
                 --iout={outputDir}/unwarped_images'.format(
                         outputDir=outputDir)
 
-        print os.popen(command).read()
+        output=os.popen(command).read()
 
 
 def applytopup(outputDir):
@@ -258,44 +266,48 @@ def applytopup(outputDir):
         applyTopUpOutput = os.popen(command).read()
         os.chdir(pwd)
 
-def eddy(outputDir):
+def eddy(outputDir,old):
     print '\tEddy Correction'
     print '\t--------------------------------'
+    if os.path.isfile(os.path.join(
+        outputDir,
+        'eddy_unwarped_images.nii.gz')):
+        pass
+    else:
+        ## mean of the corrected image
+        #mean(os.path.join(outputDir,'b0_images'),
+                #os.path.join(outputDir,'b0_images_mean'))
 
-    ## mean of the corrected image
-    #mean(os.path.join(outputDir,'b0_images'),
-            #os.path.join(outputDir,'b0_images_mean'))
+        # bet
+        os.system('bet {inImg} {output} -m -f 0.2'.format(
+            inImg = os.path.join(outputDir,'hifi_nodif'),
+            output = os.path.join(outputDir,'hifi_nodif_brain')))
+        #os.system('bet {inImg} {output} -m'.format(
+            #inImg = os.path.join(outputDir,'b0_images_mean'),
+            #output = os.path.join(outputDir,'b0_images_mean_brain')))
 
-    # bet
-    os.system('bet {inImg} {output} -m -f 0.2'.format(
-        inImg = os.path.join(outputDir,'hifi_nodif'),
-        output = os.path.join(outputDir,'hifi_nodif_brain')))
-    #os.system('bet {inImg} {output} -m'.format(
-        #inImg = os.path.join(outputDir,'b0_images_mean'),
-        #output = os.path.join(outputDir,'b0_images_mean_brain')))
+        # create an index file
+        index = ['1']*73
+        index = ' '.join(index)
 
-    # create an index file
-    index = ['1']*73
-    index = ' '.join(index)
+        with open(os.path.join(outputDir,'index.txt'),'w') as f:
+            f.write(index)
 
-    with open(os.path.join(outputDir,'index.txt'),'w') as f:
-        f.write(index)
-
-    #eddy
-    command = 'eddy \
-            --imain={outputDir}/data_even.nii.gz \
-            --mask={outputDir}/hifi_nodif_brain_mask \
-            --acqp={outputDir}/acqparams.txt \
-            --index={outputDir}/index.txt \
-            --bvecs={outputDir}/bvecs \
-            --bvals={outputDir}/bvals \
-            --fwhm=0 \
-            --flm=quadratic \
-            --topup={outputDir}/topup_results \
-            --out={outputDir}/eddy_unwarped_images'.format(
-                    outputDir=outputDir)
-    eddyOutput = os.popen(command).read()
-    print eddyOutput
+        #eddy
+        command = 'eddy \
+                --imain={outputDir}/data_even.nii.gz \
+                --mask={outputDir}/hifi_nodif_brain_mask \
+                --acqp={outputDir}/acqparams.txt \
+                --index={outputDir}/index.txt \
+                --bvecs={outputDir}/bvecs \
+                --bvals={outputDir}/bvals \
+                --fwhm=0 \
+                --flm=quadratic \
+                --topup={outputDir}/topup_results \
+                --out={outputDir}/eddy_unwarped_images'.format(
+                        outputDir=outputDir)
+        eddyOutput = os.popen(command).read()
+        print eddyOutput
 
 def mean(srcImg,trgImg):
     os.system('fslmaths {src} -Tmean {out}'.format(
@@ -317,6 +329,16 @@ def dtifit(outputDir):
 
 def main(args):
 
+    if args.old:
+        DTIdirectory = [os.path.join(
+            args.directory,x) for x in os.listdir(args.directory) if re.match(
+            'DTI',x)]
+        outputDir = os.path.join(args.directory,'DTIpreproc')
+        dicomConversion(outputDir,DTIdirectory)
+        nameChange(outputDir)
+        eddy(outputDir,args.old)
+        extractB0images(outputDir,args.full,args.old)
+
     ################################################
     # InputDir specification
     ################################################
@@ -333,7 +355,7 @@ def main(args):
     dicomConversion(outputDir,DTIdirectories)
     nameChange(outputDir)
     makeEvenNumB0(outputDir)
-    extractB0images(outputDir,args.full)
+    extractB0images(outputDir,args.full,args.old)
     writeAcqParams(outputDir,args.full)
 
     ################################################
@@ -349,7 +371,7 @@ def main(args):
     ################################################
     # Eddy
     ################################################
-    eddy(outputDir)
+    eddy(outputDir,args.old)
 
     ################################################
     # DTIFIT
@@ -369,7 +391,7 @@ if __name__=='__main__':
                     '''.format(codeName=os.path.basename(__file__))))
     parser.add_argument('-dir','--directory',help='Data directory location', default=os.getcwd())
     parser.add_argument('-f','--full',help='Process all B0', default = False)
-    parser.add_argument('-d','--dtifit',help='Create FA maps', default = False)
+    parser.add_argument('-d','--dtifit',help='Create FA maps', default = True)
     parser.add_argument('-o','--old',help='Short version', default = False)
     args = parser.parse_args()
     main(args)
