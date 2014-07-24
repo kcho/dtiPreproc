@@ -63,9 +63,7 @@ def makeEvenNumB0(outputDir):
     print '\tMake the slice number even'
     print '\t--------------------------------'
     # Make the slice number even
-    if not os.path.isfile(os.path.join(outputDir,
-        'P2A_b0_even.nii.gz' )):
-
+    if not os.path.isfile(os.path.join(outputDir,'P2A_b0_even.nii.gz')):
         # split B0
         command = 'fslslice {outputDir}/P2A_b0.nii.gz'.format(outputDir=outputDir)
         fslsliceOutput = os.popen(command).read()
@@ -279,7 +277,7 @@ def eddy(outputDir,old):
                 #os.path.join(outputDir,'b0_images_mean'))
 
         # bet
-        os.system('bet {inImg} {output} -m -f 0.2'.format(
+        os.system('bet {inImg} {output} -m -f 0.25 -c -8 -40 11'.format(
             inImg = os.path.join(outputDir,'hifi_nodif'),
             output = os.path.join(outputDir,'hifi_nodif_brain')))
         #os.system('bet {inImg} {output} -m'.format(
@@ -319,7 +317,7 @@ def dtifit(outputDir):
     print '\t--------------------------------'
     command = 'dtifit \
             -k {outputDir}/eddy_unwarped_images\
-            -m {outputDir}/nodif_brain_mask \
+            -m {outputDir}/hifi_nodif_brain_mask \
             -r {outputDir}/bvecs \
             -b {outputDir}/bvals \
             -o {outputDir}/dti'.format(outputDir=outputDir)
