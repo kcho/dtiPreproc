@@ -21,9 +21,10 @@ def getDTIdirectory(directory):
         for directory in dirs:
 
             if re.search('DTI_72D',directory,flags=re.IGNORECASE):
-                DTIdirectories.append(os.path.abspath(directory))
+                DTIdirectories.append(os.path.join(root,directory))
 
     return DTIdirectories
+
 
 def dicomConversion(outputDir,DTIdirectories):
     # Make output directory
@@ -38,8 +39,8 @@ def dicomConversion(outputDir,DTIdirectories):
         print '\t--------------------------------'
         for DTIdirectory in DTIdirectories:
             command = '/ccnc_bin/mricron/dcm2nii -o {outputDir} \
-                        {DTIdirectory}'.format(
-                                            outputDir=outputDir,
+                    "{DTIdirectory}"'.format(
+                                            outputDir=os.path.abspath(outputDir),
                                             DTIdirectory=DTIdirectory)
             dcm2niiConversionOutput = os.popen(command).read()
 
@@ -277,7 +278,7 @@ def eddy(outputDir,old):
                 #os.path.join(outputDir,'b0_images_mean'))
 
         # bet
-        os.system('bet {inImg} {output} -m -f 0.25 -c -8 -40 11'.format(
+        os.system('bet {inImg} {output} -c 54 56 32 -m -f 0.25'.format(
             inImg = os.path.join(outputDir,'hifi_nodif'),
             output = os.path.join(outputDir,'hifi_nodif_brain')))
         #os.system('bet {inImg} {output} -m'.format(
