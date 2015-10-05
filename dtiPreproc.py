@@ -1,5 +1,4 @@
 #!/ccnc_bin/venv/bin/python
-
 import textwrap
 import dicom
 import re
@@ -48,10 +47,15 @@ def nameChange(outputDir):
     # Name change
     try:
         initialFiles = os.listdir(outputDir)
-        bval = ''.join([x for x in initialFiles if re.search('bval$',x)])
-        bvec = ''.join([x for x in initialFiles if re.search('bvec$',x)])
-        data = ''.join([x for x in initialFiles if re.search('DTI.*AP.*nii.gz',x)])
-        P2A_b0 = ''.join([x for x in initialFiles if re.search('DTI.*PA.*nii.gz',x)])
+        bval = ''.join([x for x in initialFiles if re.search('bval$',x)][0])
+        bvec = ''.join([x for x in initialFiles if re.search('bvec$',x)][0])
+        data = ''.join([x for x in initialFiles if re.search('DTI.*AP.*nii.gz',x)][0])
+        P2A_b0 = ''.join([x for x in initialFiles if re.search('DTI.*PA.*nii.gz',x)][0])
+
+        print os.path.join(outputDir,bval),os.path.join(outputDir,'bvals')
+        print os.path.join(outputDir,bvec),os.path.join(outputDir,'bvecs')
+        print os.path.join(outputDir,data),os.path.join(outputDir,'data.nii.gz')
+        print os.path.join(outputDir,P2A_b0),os.path.join(outputDir,'P2A_b0.nii.gz')
 
         shutil.move(os.path.join(outputDir,bval),os.path.join(outputDir,'bvals'))
         shutil.move(os.path.join(outputDir,bvec),os.path.join(outputDir,'bvecs'))
@@ -180,27 +184,27 @@ def writeAcqParams(outputDir,full):
         # Writing acqparams.txt
         if full:
             acqparams = '''0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773'''
+0 -1 0 0.0773
+0 -1 0 0.0773
+0 -1 0 0.0773
+0 -1 0 0.0773
+0 -1 0 0.0773
+0 -1 0 0.0773
+0 -1 0 0.0773
+0 -1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773'''
         else:
             acqparams = '''0 -1 0 0.0773
-    0 -1 0 0.0773
-    0 1 0 0.0773
-    0 1 0 0.0773'''
+0 -1 0 0.0773
+0 1 0 0.0773
+0 1 0 0.0773'''
 
         with open(os.path.join(outputDir,
                                'acqparams.txt'),'w') as f:
