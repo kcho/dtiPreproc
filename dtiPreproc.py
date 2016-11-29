@@ -76,7 +76,7 @@ def makeEvenNumB0(niftiImg, outdir):
     sliceNum = f.shape[2]
 
     # Make the slice number even
-    if not sliceNum % 2 = 0:
+    if not sliceNum % 2 == 0:
         # split B0
         command = 'fslslice {0}'.format(niftiImg)
         fslsliceOutput = os.popen(command).read()
@@ -103,9 +103,9 @@ def makeEvenNumB0(niftiImg, outdir):
     else:
         return niftiImg
 
-def extractMeanB0images(niftiImg,bval, outDir):
-    f = nb.load(niftiImg)
-    imgData = f.get_data()
+def extractB0images(niftiImg,bval, outDir):
+    img = nb.load(niftiImg)
+    imgData = img.get_data()
 
     if bval:
         with open(bval, 'r') as f:
@@ -115,7 +115,42 @@ def extractMeanB0images(niftiImg,bval, outDir):
         b0_indexArray = np.arange(len(bvalsArray))[bvalsArray=='0']
 
     else:
-        b0_indexArray = range(imgData.shape[3])
+        try:
+            b0_indexArray = range(imgData.shape[3])
+        except:
+            b0_indexArray = [0]
+
+    #all_b0_imgData = np.zeros_like(imgData[:,:,:,0])
+    outImgLocs = []
+    for b0_num, b0_index in enumerate(b0_indexArray):
+        try:
+            b0_data = imgData[:,:,:,b0_index]
+        except:
+            b0_data = imgData
+        newData = nb.Nifti1Image(b0_data, img.affine)
+        imgName = 'b0_'+str(b0_num)+'_'+os.path.basename(niftiImg)
+        outImgLoc = os.path.join(outDir, imgName)
+        newData.to_filename(outImgLoc)
+        outImgLocs.append(outImgLoc)
+
+    return outImgLocs
+
+def extractMeanB0images(niftiImg,bval, outDir):
+    img = nb.load(niftiImg)
+    imgData = img.get_data()
+
+    if bval:
+        with open(bval, 'r') as f:
+            bvals = f.read().split(' ')
+
+        bvalsArray = np.array(bvals)
+        b0_indexArray = np.arange(len(bvalsArray))[bvalsArray=='0']
+
+    else:
+        try:
+            b0_indexArray = range(imgData.shape[3])
+        except:
+            b0_indexArray = [0]
 
     all_b0_imgData = np.zeros_like(imgData[:,:,:,0])
     for b0_index in b0_indexArray:
@@ -123,7 +158,7 @@ def extractMeanB0images(niftiImg,bval, outDir):
         all_b0_imgData = all_b0_imgData + b0_data
 
     mean_b0_image = all_b0_imgData / len(b0_indexArray)
-    newData = nb.Nifti1Image(mean_b0_image, f.affine)
+    newData = nb.Nifti1Image(mean_b0_image, img.affine)
 
     imgName = os.path.basename(niftiImg)
     outImgLoc = os.path.join(outDir, imgName)
@@ -132,66 +167,66 @@ def extractMeanB0images(niftiImg,bval, outDir):
     return outImgLoc
     
 
-def extractB0images():
+#def extractB0images():
 
-    #if old:
-        #command = 'fslroi {outputDir}/data.nii.gz \
-                #{outputDir}/nodif.nii.gz \
-                #{0} 1'.format(b0Num,
-                #outputDir=outputDir)
-        #os.popen(command).read()
+    ##if old:
+        ##command = 'fslroi {outputDir}/data.nii.gz \
+                ##{outputDir}/nodif.nii.gz \
+                ##{0} 1'.format(b0Num,
+                ##outputDir=outputDir)
+        ##os.popen(command).read()
 
-    else:
-        # full version
-        # extract the b0 images that were taken between the diffusion weighted images
-        if full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
-            b0Nums = [0,1,10,19,28,37,46,55,64]
+    ##else:
+        ## full version
+        ## extract the b0 images that were taken between the diffusion weighted images
+        #if full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
+            #b0Nums = [0,1,10,19,28,37,46,55,64]
 
-            # for all the sequences of the b0 images
-            for b0Num in b0Nums:
-                command = 'fslroi {outputDir}/data_even \
-                        {outputDir}/A2P_b0_{0} \
-                        {0} 1'.format(b0Num,
-                        outputDir=outputDir)
-                os.popen(command).read()
+            ## for all the sequences of the b0 images
+            #for b0Num in b0Nums:
+                #command = 'fslroi {outputDir}/data_even \
+                        #{outputDir}/A2P_b0_{0} \
+                        #{0} 1'.format(b0Num,
+                        #outputDir=outputDir)
+                #os.popen(command).read()
 
-        # non full version
-        elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 2:
-            b0Nums = [0,1] # Two B0s from A >> P
-            for b0Num in b0Nums:
-                command = 'fslroi {outputDir}/data_even \
-                        {outputDir}/A2P_b0_{0} \
-                        {0} 1'.format(b0Num,
-                        outputDir=outputDir)
-                os.popen(command).read()
+        ## non full version
+        #elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 2:
+            #b0Nums = [0,1] # Two B0s from A >> P
+            #for b0Num in b0Nums:
+                #command = 'fslroi {outputDir}/data_even \
+                        #{outputDir}/A2P_b0_{0} \
+                        #{0} 1'.format(b0Num,
+                        #outputDir=outputDir)
+                #os.popen(command).read()
 
-        # Merge B0s extracted from AP
-        if not os.path.isfile(os.path.join(
-                                outputDir,
-                                'b0_images.nii.gz')):
-            if full:
-                command = 'fslmerge -t {outputDir}/b0_images \
-                        {outputDir}/*_b0*'.format(
-                                        outputDir=outputDir)
-                os.popen(command).read()
-            else:
-                # Two images of P2A b0
-                b0Nums = [0,1] # Two B0s from A >> P
-                for b0Num in b0Nums:
-                    command = 'fslroi {outputDir}/P2A_b0_even \
-                            {outputDir}/P2A_b0_{0} \
-                            {0} 1'.format(b0Num,
-                            outputDir=outputDir)
-                    os.popen(command).read()
+        ## Merge B0s extracted from AP
+        #if not os.path.isfile(os.path.join(
+                                #outputDir,
+                                #'b0_images.nii.gz')):
+            #if full:
+                #command = 'fslmerge -t {outputDir}/b0_images \
+                        #{outputDir}/*_b0*'.format(
+                                        #outputDir=outputDir)
+                #os.popen(command).read()
+            #else:
+                ## Two images of P2A b0
+                #b0Nums = [0,1] # Two B0s from A >> P
+                #for b0Num in b0Nums:
+                    #command = 'fslroi {outputDir}/P2A_b0_even \
+                            #{outputDir}/P2A_b0_{0} \
+                            #{0} 1'.format(b0Num,
+                            #outputDir=outputDir)
+                    #os.popen(command).read()
 
-                #merge above two mean images
-                command = 'fslmerge -t {outputDir}/b0_images \
-                        {outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
-                                        outputDir=outputDir)
-                fslmathsOutput = os.popen(command).read()
+                ##merge above two mean images
+                #command = 'fslmerge -t {outputDir}/b0_images \
+                        #{outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
+                                        #outputDir=outputDir)
+                #fslmathsOutput = os.popen(command).read()
 
 
-def writeAcqParams(outDir,full):
+def writeAcqParams(ap_b0_num, pa_b0_num, outDir,full):
     '''
     A >> P : 0 -1 0
     A << P : 0 1 0
@@ -236,10 +271,7 @@ def writeAcqParams(outDir,full):
 #0 -1 0 0.0773
 #0 1 0 0.0773
 #0 1 0 0.0773'''
-            acqparams = '''0 -1 0 0.0888
-0 -1 0 0.0888
-0 1 0 0.0888
-0 1 0 0.0888'''
+            acqparams = '0 -1 0 0.0888\n'*ap_b0_num+ '0 1 0 0.0888\n'*pa_b0_num
 
         with open(os.path.join(outDir,
                                'acqparams.txt'),'w') as f:
@@ -291,8 +323,7 @@ def applytopup(ap_b0_mean, pa_b0_mean, acqparam, outDir):
                 --method=jac'.format(outDir=outDir,
                         ap_b0 = ap_b0_mean,
                         pa_b0 = pa_b0_mean,
-                        acq = acqparam,
-                        outDir = outDir)
+                        acq = acqparam)
         applyTopUpOutput = os.popen(command).read()
 
 def eddy(ap_nifti_even, bvals, bvecs, outDir):
@@ -365,22 +396,39 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
     pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
     ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
 
-    ap_b0_mean = extractMeanB0images(ap_nifti, ap_bval, outDir)
-    pa_b0_mean = extractMeanB0images(pa_nifti, False, outDir)
+    ap_b0_list = extractB0images(ap_nifti, ap_bval, outDir)
+    pa_b0_list = extractB0images(pa_nifti, False, outDir)
 
-    ap_b0_mean_data = nb.load(ap_b0_mean).get_data()
-    pa_b0_mean_data = nb.load(pa_b0_mean).get_data()
+    ap_b0_data_list = []
+    for ap_b0 in ap_b0_list:
+        ap_b0_data = nb.load(ap_b0).get_data()
+        ap_b0_data_list.append(ap_b0_data)
 
-    merged_b0_mean_data = np.concatenate(
-            (ap_b0_mean_data[...,np.newaxis],
-             pa_b0_mean_data[...,np.newaxis]),axis=3)
-    merged_b0_mean = os.path.join(outDir,'merged_b0.nii.gz')
-    affine = nb.load(ap_b0_mean).affine
-    nb.Nifti1Image(merged_b0_mean_data, 
-                   affine).to_filename(merged_b0_mean)
+    ap_b0_all_data = np.concatenate([x[...,np.newaxis] for x in ap_b0_data_list],
+            axis=3)
+
+    pa_b0_data_list = []
+    for pa_b0 in pa_b0_list:
+        pa_b0_data = nb.load(pa_b0).get_data()
+        pa_b0_data_list.append(pa_b0_data)
+
+    pa_b0_all_data = np.concatenate([x[...,np.newaxis] for x in pa_b0_data_list],
+            axis=3)
+
+    merged_b0_all_data = np.concatenate(
+            (ap_b0_all_data[...,np.newaxis],
+             pa_b0_all_data[...,np.newaxis]),axis=3)
+
+    merged_b0_all = os.path.join(outDir,'merged_b0.nii.gz')
+    #affine = nb.load(ap_b0_data).affine
+    f = nb.load(ap_b0_list[0])
+    nb.Nifti1Image(merged_b0_all_data, 
+                   f.affine).to_filename(merged_b0_all)
     
-    acqparam = writeAcqParams(outDir,False)
-    topup(merged_b0_mean, acqparam, outDir)
+    acqparam = writeAcqParams(len(ap_b0_list),
+            len(pa_b0_list),
+            outDir,False)
+    topup(merged_b0_all, acqparam, outDir)
     applytopup(ap_b0_mean, pa_b0_mean, acqparam, outDir)
     eddy(ap_nifti_even, bvals, bvecs, outDir)
 
@@ -469,6 +517,7 @@ if __name__=='__main__':
     parser.add_argument('-f','--full',help='Process all B0', default = False)
     parser.add_argument('-d','--dtifit',help='Create FA maps', default = True)
     parser.add_argument('-o','--old',help='Short version', default = False)
+    parser.add_argument('-out','--outDir',help='Short version', default = 'dtiPreproc')
     args = parser.parse_args()
 
 
@@ -496,7 +545,8 @@ if __name__=='__main__':
         dtiPreproc(ap_nifti,
                    ap_bvec,
                    ap_bval,
-                   pa_nifti)
+                   pa_nifti,
+                   args.outDir)
 
     elif dtiDirsCount < 2:
         if not args.old:
