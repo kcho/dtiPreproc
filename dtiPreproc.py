@@ -69,7 +69,7 @@ def nameChange(outputDir):
 def makeEvenNumB0(niftiImg, outdir):
     outputDir = os.path.dirname(niftiImg)
 
-    print '\tMake the slice number even'
+    print '\tMake the slice number even : ', niftiImg
     print '\t--------------------------------'
 
     f = nb.load(niftiImg).get_data()
@@ -77,6 +77,8 @@ def makeEvenNumB0(niftiImg, outdir):
 
     # Make the slice number even
     if not sliceNum % 2 == 0:
+        print '\t\tRemoving the most inferior slice'
+
         # split B0
         command = 'fslslice {0}'.format(niftiImg)
         fslsliceOutput = os.popen(command).read()
@@ -280,7 +282,7 @@ def writeAcqParams(ap_b0_num, pa_b0_num, outDir,full):
     return os.path.join(outDir,'acqparams.txt')
 
 
-def topup(merged_b0_mean, acqparam, outDir):
+def topup(merged_b0_all, acqparam, outDir):
     print '\tRunning Topup, FSL'
     print '\t--------------------------------'
     if os.path.isfile(os.path.join(
@@ -294,20 +296,25 @@ def topup(merged_b0_mean, acqparam, outDir):
                 --out={outDir}/topup_results \
                 --fout={outDir}/field \
                 --iout={outDir}/unwarped_images'.format(
-                        b0_images = merged_b0_mean,
+                        b0_images = merged_b0_all,
                         acq = acqparam, 
                         outDir=outDir)
 
         output=os.popen(command).read()
 
 
-def applytopup(ap_b0_mean, pa_b0_mean, acqparam, outDir):
+def applytopup(ap_b0, pa_b0, acqparam, outDir):
     print '\tApply Topup'
     print '\t--------------------------------'
-    #acqparams line number
+
+    # inindex number
+    # index number of the ap_b0 / pa_b0 image 
+    # in the acqparam
     with open(acqparam, 'r') as f:
-        a = f.readlines()
-        maxNum = len(a)
+        lines = f.readlines()
+    lines_strip = [x.strip() for x in lines]
+    ap_b0_num = lines_strip.index(list(set(lines_strip))[0]) + 1 
+    pa_b0_num = lines_strip.index(list(set(lines_strip))[1]) + 1
 
     if os.path.isfile(os.path.join(
         outDir,
@@ -317,16 +324,18 @@ def applytopup(ap_b0_mean, pa_b0_mean, acqparam, outDir):
         command = 'applytopup \
                 --imain={ap_b0},{pa_b0} \
                 --datain={acq} \
-                --inindex=1,2 \
+                --inindex={ap_b0_num},{pa_b0_num} \
                 --topup={outDir}/topup_results \
                 --out={outDir}/hifi_nodif.nii.gz \
                 --method=jac'.format(outDir=outDir,
-                        ap_b0 = ap_b0_mean,
-                        pa_b0 = pa_b0_mean,
+                        ap_b0 = ap_b0,
+                        pa_b0 = pa_b0,
+                        ap_b0_num = ap_b0_num,
+                        pa_b0_num = pa_b0_num,
                         acq = acqparam)
         applyTopUpOutput = os.popen(command).read()
 
-def eddy(ap_nifti_even, bvals, bvecs, outDir):
+def eddy(ap_nifti_even, bvals, bvecs, acqparam, outDir):
     print '\tEddy Correction'
     print '\t--------------------------------'
     if os.path.isfile(os.path.join(
@@ -339,16 +348,25 @@ def eddy(ap_nifti_even, bvals, bvecs, outDir):
                 #os.path.join(outDir,'b0_images_mean'))
 
         # bet
-        os.system('bet {inImg} {output} -c 54 56 32 -m -f 0.25'.format(
-            inImg = os.path.join(outDir,'hifi_nodif'),
-            output = os.path.join(outDir,'hifi_nodif_brain')))
+        bet_in = os.path.join(outDir,'hifi_nodif')
+        bet_out = os.path.join(outDir,'hifi_nodif_brain')
+        bet_mask = os.path.join(outDir,
+                                'hifi_nodif_brain_mask.nii.gz')
+        os.system('bet {inImg} {output} \
+                -c 54 56 32 \
+                -m -f 0.25'.format(inImg=bet_in, output=bet_out))
         #os.system('bet {inImg} {output} -m'.format(
             #inImg = os.path.join(outDir,'b0_images_mean'),
             #output = os.path.join(outDir,'b0_images_mean_brain')))
 
+        # index
+        with open(bvals,'r') as f:
+            line = f.read()
+        vol_num = len(line.strip().split(' '))
+
         # create an index file
-        # 70 --> number of volumes
-        index = ['1']*70
+        # 70 --> number of volumes SCS project
+        index = ['1']*vol_num
         index = ' '.join(index)
 
         with open(os.path.join(outDir,'index.txt'),'w') as f:
@@ -372,22 +390,30 @@ def eddy(ap_nifti_even, bvals, bvecs, outDir):
                         bvals = bvals,
                         outDir=outDir)
         eddyOutput = os.popen(command).read()
+        eddy_out = os.path.join(outDir, 
+                                'eddy_unwarped_images.nii.gz')
         print eddyOutput
+
+    try:
+        return eddy_out, bet_mask
+    except:
+        pass
+
 
 def mean(srcImg,trgImg):
     os.system('fslmaths {src} -Tmean {out}'.format(
         src=srcImg,
         out=trgImg))
 
-def dtifit(outputDir):
+def dtifit(eddy_out, mask, bvecs, bvals, 'dti', outDir):
     print '\tDTIFIT : scalar map calculation'
     print '\t--------------------------------'
     command = 'dtifit \
-            -k {outputDir}/eddy_unwarped_images\
-            -m {outputDir}/hifi_nodif_brain_mask \
-            -r {outputDir}/bvecs \
-            -b {outputDir}/bvals \
-            -o {outputDir}/dti'.format(outputDir=outputDir)
+            -k {eddy_out} \
+            -m {mask} \
+            -r {bvecs} \
+            -b {bvals} \
+            -o {outDir}/dti'.format(outDir=outDir)
     print os.popen(command).read()
 
 
@@ -399,6 +425,7 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
     ap_b0_list = extractB0images(ap_nifti, ap_bval, outDir)
     pa_b0_list = extractB0images(pa_nifti, False, outDir)
 
+    # Merge ap b0 images
     ap_b0_data_list = []
     for ap_b0 in ap_b0_list:
         ap_b0_data = nb.load(ap_b0).get_data()
@@ -407,6 +434,7 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
     ap_b0_all_data = np.concatenate([x[...,np.newaxis] for x in ap_b0_data_list],
             axis=3)
 
+    # Merge pa b0 images
     pa_b0_data_list = []
     for pa_b0 in pa_b0_list:
         pa_b0_data = nb.load(pa_b0).get_data()
@@ -415,12 +443,11 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
     pa_b0_all_data = np.concatenate([x[...,np.newaxis] for x in pa_b0_data_list],
             axis=3)
 
+    # Merge ap & pa b0 images
     merged_b0_all_data = np.concatenate(
             (ap_b0_all_data[...,np.newaxis],
              pa_b0_all_data[...,np.newaxis]),axis=3)
-
     merged_b0_all = os.path.join(outDir,'merged_b0.nii.gz')
-    #affine = nb.load(ap_b0_data).affine
     f = nb.load(ap_b0_list[0])
     nb.Nifti1Image(merged_b0_all_data, 
                    f.affine).to_filename(merged_b0_all)
@@ -429,61 +456,11 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
             len(pa_b0_list),
             outDir,False)
     topup(merged_b0_all, acqparam, outDir)
-    applytopup(ap_b0_mean, pa_b0_mean, acqparam, outDir)
-    eddy(ap_nifti_even, bvals, bvecs, outDir)
+    applytopup(ap_b0_list[0], pa_b0_list[0], acqparam, outDir)
+    eddy_out, mask = eddy(ap_nifti_even, 
+                          ap_bval, ap_bvec, acqparam, outDir)
+    dtifit(eddy_out, mask, bvecs, bvals, 'dti', outDir)
 
-
-
-def main(args):
-    if args.old:
-        DTIdirectory = [os.path.join(
-            args.directory,x) for x in os.listdir(args.directory) if re.match(
-            'DTI',x)]
-        outputDir = os.path.join(args.directory,'DTIpreproc')
-        dicomConversion(outputDir,DTIdirectory)
-        nameChange(outputDir)
-        eddy(outputDir,args.old)
-        extractB0images(outputDir,args.full,args.old)
-
-    ################################################
-    # InputDir specification
-    ################################################
-    DTIdirectories = getDTIdirectory(args.directory)
-
-    ################################################
-    # outputDir specification
-    ################################################
-    outputDir = os.path.join(args.directory,'DTIpreproc')
-
-    ################################################
-    # Preparation
-    ################################################
-    dicomConversion(outputDir,DTIdirectories)
-    nameChange(outputDir)
-    makeEvenNumB0(outputDir)
-    extractB0images(outputDir,args.full,args.old)
-    writeAcqParams(outputDir,args.full)
-
-    ################################################
-    # Running topup
-    ################################################
-    topup(outputDir)
-
-    ################################################
-    # applytopup
-    ################################################
-    applytopup(outputDir)
-
-    ################################################
-    # Eddy
-    ################################################
-    eddy(outputDir,args.old)
-
-    ################################################
-    # DTIFIT
-    ################################################
-    if args.dtifit:
-        dtifit(outputDir)
 
 def get_dti_trio(Loc):
     for root, dirs, files in os.walk(Loc):
@@ -563,3 +540,53 @@ if __name__=='__main__':
             print '>', i
         sys.exit()
 
+#def main(args):
+    #if args.old:
+        #DTIdirectory = [os.path.join(
+            #args.directory,x) for x in os.listdir(args.directory) if re.match(
+            #'DTI',x)]
+        #outputDir = os.path.join(args.directory,'DTIpreproc')
+        #dicomConversion(outputDir,DTIdirectory)
+        #nameChange(outputDir)
+        #eddy(outputDir,args.old)
+        #extractB0images(outputDir,args.full,args.old)
+
+    #################################################
+    ## InputDir specification
+    #################################################
+    #DTIdirectories = getDTIdirectory(args.directory)
+
+    #################################################
+    ## outputDir specification
+    #################################################
+    #outputDir = os.path.join(args.directory,'DTIpreproc')
+
+    #################################################
+    ## Preparation
+    #################################################
+    #dicomConversion(outputDir,DTIdirectories)
+    #nameChange(outputDir)
+    #makeEvenNumB0(outputDir)
+    #extractB0images(outputDir,args.full,args.old)
+    #writeAcqParams(outputDir,args.full)
+
+    #################################################
+    ## Running topup
+    #################################################
+    #topup(outputDir)
+
+    #################################################
+    ## applytopup
+    #################################################
+    #applytopup(outputDir)
+
+    #################################################
+    ## Eddy
+    #################################################
+    #eddy(outputDir,args.old)
+
+    #################################################
+    ## DTIFIT
+    #################################################
+    #if args.dtifit:
+        #dtifit(outputDir)
