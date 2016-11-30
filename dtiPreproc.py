@@ -434,6 +434,11 @@ def dtifit(eddy_out, mask, bvecs, bvals, outName, outDir):
 
 
 def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
+    # b0 images registration required
+    # b0 images registration required
+    # b0 images registration required
+    # b0 images registration required
+    # b0 images registration required
     pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
     ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
 
