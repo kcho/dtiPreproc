@@ -69,7 +69,7 @@ def nameChange(outputDir):
 def makeEvenNumB0(niftiImg, outdir):
     outputDir = os.path.dirname(niftiImg)
 
-    print '\tMake the slice number even : ', niftiImg
+    print '\tMake the slice number even : ', os.path.basename(niftiImg)
     print '\t--------------------------------'
 
     f = nb.load(niftiImg).get_data()
@@ -78,6 +78,12 @@ def makeEvenNumB0(niftiImg, outdir):
     # Make the slice number even
     if not sliceNum % 2 == 0:
         print '\t\tRemoving the most inferior slice'
+        # 3D
+        try:
+            newData = f[:,:,:-1]
+        # 4D
+        except:
+            newData = f[:,:,:-1,:]
 
         # split B0
         command = 'fslslice {0}'.format(niftiImg)
@@ -341,7 +347,11 @@ def eddy(ap_nifti_even, bvals, bvecs, acqparam, outDir):
     if os.path.isfile(os.path.join(
         outDir,
         'eddy_unwarped_images.nii.gz')):
-        pass
+
+        bet_mask = os.path.join(outDir,
+                                'hifi_nodif_brain_mask.nii.gz')
+        eddy_out = os.path.join(outDir, 
+                                'eddy_unwarped_images.nii.gz')
     else:
         ## mean of the corrected image
         #mean(os.path.join(outDir,'b0_images'),
@@ -397,7 +407,7 @@ def eddy(ap_nifti_even, bvals, bvecs, acqparam, outDir):
     try:
         return eddy_out, bet_mask
     except:
-        pass
+        return eddy_out, bet_mask
 
 
 def mean(srcImg,trgImg):
@@ -405,7 +415,7 @@ def mean(srcImg,trgImg):
         src=srcImg,
         out=trgImg))
 
-def dtifit(eddy_out, mask, bvecs, bvals, 'dti', outDir):
+def dtifit(eddy_out, mask, bvecs, bvals, outName, outDir):
     print '\tDTIFIT : scalar map calculation'
     print '\t--------------------------------'
     command = 'dtifit \
@@ -413,7 +423,12 @@ def dtifit(eddy_out, mask, bvecs, bvals, 'dti', outDir):
             -m {mask} \
             -r {bvecs} \
             -b {bvals} \
-            -o {outDir}/dti'.format(outDir=outDir)
+            -o {outDir}/{outName}'.format(outDir=outDir,
+                    eddy_out=eddy_out,
+                    mask=mask,
+                    bvecs=bvecs,
+                    bvals=bvals,
+                    outName=outName)
     print os.popen(command).read()
 
 
@@ -457,9 +472,8 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
             outDir,False)
     topup(merged_b0_all, acqparam, outDir)
     applytopup(ap_b0_list[0], pa_b0_list[0], acqparam, outDir)
-    eddy_out, mask = eddy(ap_nifti_even, 
-                          ap_bval, ap_bvec, acqparam, outDir)
-    dtifit(eddy_out, mask, bvecs, bvals, 'dti', outDir)
+    eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
+    dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
 
 
 def get_dti_trio(Loc):
