@@ -68,18 +68,16 @@ def nameChange(outputDir):
         pass
 
 def makeEvenNumB0(niftiImg, outdir):
-    outputDir = dirname(niftiImg)
+    print('\tMake the slice number even : ', basename(niftiImg))
 
-    print '\tMake the slice number even : ', basename(niftiImg)
-    print '\t--------------------------------'
-
+    # Load nifti file
     f = nb.load(niftiImg)
     data = f.get_data()
     sliceNum = data.shape[2]
 
     # Make the slice number even
     if not sliceNum % 2 == 0:
-        print '\t\tRemoving the most inferior slice'
+        print('\t\tRemoving the most inferior slice')
         # 3D
         try:
             newData = data[:,:,1:]
@@ -91,73 +89,81 @@ def makeEvenNumB0(niftiImg, outdir):
         even_niftiImg = join(outdir, 'even_{0}'.format(basename(niftiImg)))
         img = nb.Nifti1Image(newData, f.affine)
         img.to_filename(even_niftiImg)
-
         return even_niftiImg
+
     else:
         return niftiImg
 
-def extractB0images(niftiImg,bval, outDir):
-    img = nb.load(niftiImg)
-    imgData = img.get_data()
+def getmat_b0(niftiImg, bval):
+    '''
+    Return averaged B0 images
+    '''
 
+    # Load images
+    f = nb.load(niftiImg)
+    data = f.get_data()
+
+    # AP images
     if bval:
-        with open(bval, 'r') as f:
-            bvals = f.read().split(' ')
+        with open(bval, 'r') as bvalf:
+            bvals = bvalf.read().split(' ')
 
         bvalsArray = np.array(bvals)
-        b0_indexArray = np.arange(len(bvalsArray))[bvalsArray=='0']
+        b0_indexArray = np.where(bvalsArray=='0')
 
+    # PA images might not have bvals
     else:
         try:
-            b0_indexArray = range(imgData.shape[3])
+            # all volumes
+            b0_indexArray = range(data.shape[3])
         except:
+            # first volume
             b0_indexArray = [0]
 
     #all_b0_imgData = np.zeros_like(imgData[:,:,:,0])
     outImgLocs = []
-    for b0_num, b0_index in enumerate(b0_indexArray):
-        try:
-            b0_data = imgData[:,:,:,b0_index]
-        except:
-            b0_data = imgData
-        newData = nb.Nifti1Image(b0_data, img.affine)
-        imgName = 'b0_'+str(b0_num)+'_'+os.path.basename(niftiImg)
-        outImgLoc = os.path.join(outDir, imgName)
-        newData.to_filename(outImgLoc)
-        outImgLocs.append(outImgLoc)
 
-    return outImgLocs
+    # one B0 image
+    if len(data.shape) == 3:
+        b0_data = data
 
-def extractMeanB0images(niftiImg,bval, outDir):
-    img = nb.load(niftiImg)
-    imgData = img.get_data()
+    elif len(data.shape) == 4:
+        b0_data = data[:,:,:,b0_indexArray]
 
-    if bval:
-        with open(bval, 'r') as f:
-            bvals = f.read().split(' ')
+    img = nb.Nifti1Image(b0_data, f.affine)
 
-        bvalsArray = np.array(bvals)
-        b0_indexArray = np.arange(len(bvalsArray))[bvalsArray=='0']
+    return img
 
-    else:
-        try:
-            b0_indexArray = range(imgData.shape[3])
-        except:
-            b0_indexArray = [0]
+#def extractMeanB0images(niftiImg,bval, outDir):
+    #img = nb.load(niftiImg)
+    #imgData = img.get_data()
 
-    all_b0_imgData = np.zeros_like(imgData[:,:,:,0])
-    for b0_index in b0_indexArray:
-        b0_data = imgData[:,:,:,b0_index]
-        all_b0_imgData = all_b0_imgData + b0_data
+    #if bval:
+        #with open(bval, 'r') as f:
+            #bvals = f.read().split(' ')
 
-    mean_b0_image = all_b0_imgData / len(b0_indexArray)
-    newData = nb.Nifti1Image(mean_b0_image, img.affine)
+        #bvalsArray = np.array(bvals)
+        #b0_indexArray = np.arange(len(bvalsArray))[bvalsArray=='0']
 
-    imgName = os.path.basename(niftiImg)
-    outImgLoc = os.path.join(outDir, imgName)
-    newData.to_filename(outImgLoc)
+    #else:
+        #try:
+            #b0_indexArray = range(imgData.shape[3])
+        #except:
+            #b0_indexArray = [0]
 
-    return outImgLoc
+    #all_b0_imgData = np.zeros_like(imgData[:,:,:,0])
+    #for b0_index in b0_indexArray:
+        #b0_data = imgData[:,:,:,b0_index]
+        #all_b0_imgData = all_b0_imgData + b0_data
+
+    #mean_b0_image = all_b0_imgData / len(b0_indexArray)
+    #newData = nb.Nifti1Image(mean_b0_image, img.affine)
+
+    #imgName = os.path.basename(niftiImg)
+    #outImgLoc = os.path.join(outDir, imgName)
+    #newData.to_filename(outImgLoc)
+
+    #return outImgLoc
     
 
 #def extractB0images():
@@ -418,52 +424,37 @@ def dtifit(eddy_out, mask, bvecs, bvals, outName, outDir):
 
 
 
-def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
-    # b0 images registration required
-    # b0 images registration required
-    # b0 images registration required
-    # b0 images registration required
-    # b0 images registration required
+def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
     ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
     pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
 
-    ap_b0_list = extractB0images(ap_nifti, ap_bval, outDir)
-    pa_b0_list = extractB0images(pa_nifti, False, outDir)
+    ap_b0_nifti = getmat_b0(ap_nifti, ap_bval)
+    pa_b0_nifti = getmat_b0(pa_nifti, pa_bval)
 
-    # Merge ap b0 images
-    ap_b0_data_list = []
-    for ap_b0 in ap_b0_list:
-        ap_b0_data = nb.load(ap_b0).get_data()
-        ap_b0_data_list.append(ap_b0_data)
-
-    ap_b0_all_data = np.concatenate([x[...,np.newaxis] for x in ap_b0_data_list],
-            axis=3)
-
-    # Merge pa b0 images
-    pa_b0_data_list = []
-    for pa_b0 in pa_b0_list:
-        pa_b0_data = nb.load(pa_b0).get_data()
-        pa_b0_data_list.append(pa_b0_data)
-
-    pa_b0_all_data = np.concatenate([x[...,np.newaxis] for x in pa_b0_data_list],
-            axis=3)
+    ap_b0_data = ap_b0_nifti.get_data()
+    pa_b0_data = pa_b0_nifti.get_data()
 
     # Merge ap & pa b0 images
-    merged_b0_all_data = np.concatenate(
-            (ap_b0_all_data[...,np.newaxis],
-             pa_b0_all_data[...,np.newaxis]),axis=3)
-    merged_b0_all = os.path.join(outDir,'merged_b0.nii.gz')
-    f = nb.load(ap_b0_list[0])
-    nb.Nifti1Image(merged_b0_all_data, 
-                   f.affine).to_filename(merged_b0_all)
+    print(ap_b0_data.shape)
+    print(pa_b0_data.shape)
+
+    merged_b0_all_data = np.concatenate([ap_b0_data, pa_b0_data],
+                                        axis=3)
+
+    print(merged_b0_all_data.shape)
+
+    #merged_b0_all = os.path.join(outDir,'merged_b0.nii.gz')
+    #f = nb.load(ap_b0_list[0])
+    #nb.Nifti1Image(merged_b0_all_data, 
+                   #f.affine).to_filename(merged_b0_all)
     
-    acqparam = writeAcqParams(len(ap_b0_list),
-            len(pa_b0_list),
-            outDir,False)
-    topup(merged_b0_all, acqparam, outDir)
-    applytopup(ap_b0_list[0], pa_b0_list[0], acqparam, outDir)
-    eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
-    dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
+    #acqparam = writeAcqParams(len(ap_b0_list),
+            #len(pa_b0_list),
+            #outDir,False)
+    #topup(merged_b0_all, acqparam, outDir)
+    #applytopup(ap_b0_list[0], pa_b0_list[0], acqparam, outDir)
+    #eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
+    #dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
 
 
 def get_dti_trio(Loc):
