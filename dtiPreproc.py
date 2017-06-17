@@ -68,45 +68,29 @@ def nameChange(outputDir):
         pass
 
 def makeEvenNumB0(niftiImg, outdir):
-    outputDir = os.path.dirname(niftiImg)
+    outputDir = dirname(niftiImg)
 
-    print '\tMake the slice number even : ', os.path.basename(niftiImg)
+    print '\tMake the slice number even : ', basename(niftiImg)
     print '\t--------------------------------'
 
-    f = nb.load(niftiImg).get_data()
-    sliceNum = f.shape[2]
+    f = nb.load(niftiImg)
+    data = f.get_data()
+    sliceNum = data.shape[2]
 
     # Make the slice number even
     if not sliceNum % 2 == 0:
         print '\t\tRemoving the most inferior slice'
         # 3D
         try:
-            newData = f[:,:,:-1]
+            newData = data[:,:,1:]
         # 4D
         except:
-            newData = f[:,:,:-1,:]
+            newData = data[:,:,1:,:]
 
-        # split B0
-        command = 'fslslice {0}'.format(niftiImg)
-        fslsliceOutput = os.popen(command).read()
-
-        # merge B0
-        slicedImages = [os.path.join(outputDir,x) for x in os.listdir(outputDir) if re.search('slice',x)]
-
-        even_niftiImg = os.path.join(outdir, 
-                                'even_' + os.path.basename(niftiImg))
-
-        command = 'fslmerge -z \
-                {newImg}\
-                {slicedImages}'.format(
-                    newImg = even_niftiImg,
-                    slicedImages=' '.join(slicedImages[:-1]))
-
-        fslmergeOutput = os.popen(command).read()
-
-        #Remove splitImages
-        for img in slicedImages:
-            os.remove(img)
+        # save data
+        even_niftiImg = join(outdir, 'even_{0}'.format(basename(niftiImg)))
+        img = nb.Nifti1Image(newData, f.affine)
+        img.to_filename(even_niftiImg)
 
         return even_niftiImg
     else:
