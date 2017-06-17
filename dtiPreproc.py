@@ -96,42 +96,24 @@ def makeEvenNumB0(niftiImg, outdir):
 
 def getmat_b0(niftiImg, bval):
     '''
-    Return averaged B0 images
+    Return B0 images in 4d nibabel format,
+    extracted from the data.nii.gz using the index in the bval
     '''
 
     # Load images
     f = nb.load(niftiImg)
     data = f.get_data()
 
-    # AP images
+    # Load bval if there is a location given
     if bval:
         with open(bval, 'r') as bvalf:
             bvals = bvalf.read().split(' ')
 
         bvalsArray = np.array(bvals)
-        b0_indexArray = np.where(bvalsArray=='0')
+        b0_indexArray = np.where(bvalsArray=='0')[0]
 
-    # PA images might not have bvals
-    else:
-        try:
-            # all volumes
-            b0_indexArray = range(data.shape[3])
-        except:
-            # first volume
-            b0_indexArray = [0]
-
-    #all_b0_imgData = np.zeros_like(imgData[:,:,:,0])
-    outImgLocs = []
-
-    # one B0 image
-    if len(data.shape) == 3:
-        b0_data = data
-
-    elif len(data.shape) == 4:
-        b0_data = data[:,:,:,b0_indexArray]
-
+    b0_data = data[:,:,:,b0_indexArray]
     img = nb.Nifti1Image(b0_data, f.affine)
-
     return img
 
 #def extractMeanB0images(niftiImg,bval, outDir):
