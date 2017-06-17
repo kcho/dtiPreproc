@@ -398,21 +398,21 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
     # Save to nifti
     merged_b0 = np.concatenate([ap_b0_data, pa_b0_data], axis=3)
     merged_b0_loc = join(outDir,'merged_b0.nii.gz')
-    #nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
+    nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
     
     # get matrix
     matrix_size = ap_b0_data.shape[0] 
 
     # get echo spacing
-    echo_spacing = 0.77 # KJS2 protocol
+    echo_spacing = 0.77 # KJS2 protocol & SNU tDCS diabetes
 
-    acqparam = writeAcqParams(ap_b0_data.shape[3], 
+    acqparamLoc = writeAcqParams(ap_b0_data.shape[3], 
                               pa_b0_data.shape[3],
                               matrix_size,
                               echo_spacing,
                               outDir,False)
 
-    #topup(merged_b0_all, acqparam, outDir)
+    topup(merged_b0_loc, acqparam, outDir)
     #applytopup(ap_b0_list[0], pa_b0_list[0], acqparam, outDir)
     #eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
     #dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
