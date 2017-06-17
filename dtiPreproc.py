@@ -1,5 +1,6 @@
 #!/ccnc_bin/venv/bin/python
 import textwrap
+from os.path import join, basename, isfile, isdir, dirname
 import dicom
 import re
 import os
@@ -439,8 +440,8 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, outDir):
     # b0 images registration required
     # b0 images registration required
     # b0 images registration required
-    pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
     ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
+    pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
 
     ap_b0_list = extractB0images(ap_nifti, ap_bval, outDir)
     pa_b0_list = extractB0images(pa_nifti, False, outDir)
@@ -509,33 +510,36 @@ if __name__=='__main__':
                         eg) {codeName} --dir /Users/kevin/NOR04_CKI
                         eg) {codeName} --dir /Users/kevin/NOR04_CKI
                     '''.format(codeName=os.path.basename(__file__))))
-    parser.add_argument('-dir','--directory',help='Data directory location', default=os.getcwd())
+    parser.add_argument('-d','--dir',help='Data directory location', default=os.getcwd())
+    parser.add_argument('-a','--apDir',help='AP data directory location', default=join(os.getcwd(), 'DTI_AP'))
+    parser.add_argument('-p','--paDir',help='PA data directory location', default=join(os.getcwd(), 'DTI_PA'))
     parser.add_argument('-f','--full',help='Process all B0', default = False)
-    parser.add_argument('-d','--dtifit',help='Create FA maps', default = True)
+    parser.add_argument('-t','--dtifit',help='Create FA maps', default = True)
     parser.add_argument('-o','--old',help='Short version', default = False)
     parser.add_argument('-out','--outDir',help='Short version', default = 'dtiPreproc')
     args = parser.parse_args()
 
+    # update apDir and paDir
+    args.apDir = join(args.dir, 'DTI_AP')
+    args.paDir = join(args.dir, 'DTI_PA')
+    #args.outDir = join(args.dir, 'dtiPreproc')
 
     subDirs = os.listdir(args.directory)
     dtiDirs = [x for x in subDirs \
             if re.search('DTI_', x, re.IGNORECASE)]
     dtiDirsCount = len(dtiDirs)
 
-    if dtiDirsCount == 2:
-        for i in dtiDirs:
-            if 'ap' in i.lower():
-                try:
-                    ap_nifti, ap_bvec, ap_bval = get_dti_trio(os.path.join(args.directory, i))
-                except:
-                    sys.exit('AP nifti file is missing')
+    # If there are directories named 'DTI_AP' and 'DTI_PA'
+    if dtiDirsCount > 1 and isdir(args.apDir) and isdir(args.paDir):
+        try:
+            ap_nifti, ap_bvec, ap_bval = get_dti_trio(args.apDir)
+        except:
+            sys.exit('AP nifti file is missing')
 
-            elif 'pa' in i.lower():
-                try:
-                    pa_nifti = get_nifti(os.path.join(args.directory, i))
-                except:
-                    sys.exit('PA nifti file is missing')
-
+        try:
+            pa_nifti = get_nifti(os.path.join(args.directory, i))
+        except:
+            sys.exit('PA nifti file is missing')
 
         # dtiPreproc(APdata, bvals, bvecs, PAdata)
         dtiPreproc(ap_nifti,
@@ -544,6 +548,7 @@ if __name__=='__main__':
                    pa_nifti,
                    args.outDir)
 
+    # If only one encoding direction was used
     elif dtiDirsCount < 2:
         if not args.old:
             print 'There are less than two DTI directories'
@@ -559,53 +564,3 @@ if __name__=='__main__':
             print '>', i
         sys.exit()
 
-#def main(args):
-    #if args.old:
-        #DTIdirectory = [os.path.join(
-            #args.directory,x) for x in os.listdir(args.directory) if re.match(
-            #'DTI',x)]
-        #outputDir = os.path.join(args.directory,'DTIpreproc')
-        #dicomConversion(outputDir,DTIdirectory)
-        #nameChange(outputDir)
-        #eddy(outputDir,args.old)
-        #extractB0images(outputDir,args.full,args.old)
-
-    #################################################
-    ## InputDir specification
-    #################################################
-    #DTIdirectories = getDTIdirectory(args.directory)
-
-    #################################################
-    ## outputDir specification
-    #################################################
-    #outputDir = os.path.join(args.directory,'DTIpreproc')
-
-    #################################################
-    ## Preparation
-    #################################################
-    #dicomConversion(outputDir,DTIdirectories)
-    #nameChange(outputDir)
-    #makeEvenNumB0(outputDir)
-    #extractB0images(outputDir,args.full,args.old)
-    #writeAcqParams(outputDir,args.full)
-
-    #################################################
-    ## Running topup
-    #################################################
-    #topup(outputDir)
-
-    #################################################
-    ## applytopup
-    #################################################
-    #applytopup(outputDir)
-
-    #################################################
-    ## Eddy
-    #################################################
-    #eddy(outputDir,args.old)
-
-    #################################################
-    ## DTIFIT
-    #################################################
-    #if args.dtifit:
-        #dtifit(outputDir)
