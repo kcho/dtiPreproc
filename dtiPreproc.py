@@ -1,4 +1,5 @@
 #!/ccnc_bin/venv/bin/python
+from __future__ import division
 import textwrap
 from os.path import join, basename, isfile, isdir, dirname
 import dicom
@@ -207,7 +208,7 @@ def getmat_b0(niftiImg, bval):
                 #fslmathsOutput = os.popen(command).read()
 
 
-def writeAcqParams(ap_b0_num, pa_b0_num, outDir,full):
+def writeAcqParams(ap_b0_num, pa_b0_num, matrix_size, echo_spacing, outDir,full):
     '''
     A >> P : 0 -1 0
     A << P : 0 1 0
@@ -216,49 +217,24 @@ def writeAcqParams(ap_b0_num, pa_b0_num, outDir,full):
     > TR = 9300ms , TE=94ms, Echo spacing = 0.69ms, 96x96 matrix and 65 slices,
     > Phase partial Fourier 6/8 and finally bandwidth 1628Hz/Px
     the relevant time in your case is (96-1)*0.00069 = 0.0656 seconds.
-
     For SCS project
     - 112x112 matrix
     - 0.8 echo spacing
     (112-1) * 0.0008 = .0888
     '''
+    num = (matrix_size-1) * (1/1000 * echo_spacing)
+    acqparamLoc = join(outDir, 'acqparams.txt')
 
-    print '\tWrite Acquisition Parameters'
-    print '\t--------------------------------'
-    if not os.path.isfile(os.path.join(outDir,
-        'acqparams.txt')):
+    #if not isfile(acqparamLoc):
+    if isfile(acqparamLoc):
         # Writing acqparams.txt
-        if full:
-            acqparams = '''0 -1 0 0.0773
-0 -1 0 0.0773
-0 -1 0 0.0773
-0 -1 0 0.0773
-0 -1 0 0.0773
-0 -1 0 0.0773
-0 -1 0 0.0773
-0 -1 0 0.0773
-0 -1 0 0.0773
-0 1 0 0.0773
-0 1 0 0.0773
-0 1 0 0.0773
-0 1 0 0.0773
-0 1 0 0.0773
-0 1 0 0.0773
-0 1 0 0.0773
-0 1 0 0.0773'''
-        else:
-            #Temple
-            #acqparams = '''0 -1 0 0.0773
-#0 -1 0 0.0773
-#0 1 0 0.0773
-#0 1 0 0.0773'''
-            acqparams = '0 -1 0 0.0888\n'*ap_b0_num+ '0 1 0 0.0888\n'*pa_b0_num
-
-        with open(os.path.join(outDir,
-                               'acqparams.txt'),'w') as f:
-            f.write(acqparams)
-
-    return os.path.join(outDir,'acqparams.txt')
+        ap_array = np.tile([0, -1, 0, num], ap_b0_num).reshape(ap_b0_num, 4)
+        pa_array = np.tile([0, 1, 0, num], pa_b0_num).reshape(pa_b0_num, 4)
+        concat_array = np.concatenate([ap_array, pa_array])
+        np.savetxt(acqparamLoc, concat_array, 
+                   fmt=['%d', '%d', '%d', '%0.3f'])
+    
+    return acqparamLoc
 
 
 def topup(merged_b0_all, acqparam, outDir):
@@ -407,9 +383,11 @@ def dtifit(eddy_out, mask, bvecs, bvals, outName, outDir):
 
 
 def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
+    # make the number of z slice even
     ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
     pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
 
+    # get b0 maps in 4d nibabel format
     ap_b0_nifti = getmat_b0(ap_nifti, ap_bval)
     pa_b0_nifti = getmat_b0(pa_nifti, pa_bval)
 
@@ -417,22 +395,23 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
     pa_b0_data = pa_b0_nifti.get_data()
 
     # Merge ap & pa b0 images
-    print(ap_b0_data.shape)
-    print(pa_b0_data.shape)
-
-    merged_b0_all_data = np.concatenate([ap_b0_data, pa_b0_data],
-                                        axis=3)
-
-    print(merged_b0_all_data.shape)
-
-    #merged_b0_all = os.path.join(outDir,'merged_b0.nii.gz')
-    #f = nb.load(ap_b0_list[0])
-    #nb.Nifti1Image(merged_b0_all_data, 
-                   #f.affine).to_filename(merged_b0_all)
+    # Save to nifti
+    merged_b0 = np.concatenate([ap_b0_data, pa_b0_data], axis=3)
+    merged_b0_loc = join(outDir,'merged_b0.nii.gz')
+    #nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
     
-    #acqparam = writeAcqParams(len(ap_b0_list),
-            #len(pa_b0_list),
-            #outDir,False)
+    # get matrix
+    matrix_size = ap_b0_data.shape[0] 
+
+    # get echo spacing
+    echo_spacing = 0.77 # KJS2 protocol
+
+    acqparam = writeAcqParams(ap_b0_data.shape[3], 
+                              pa_b0_data.shape[3],
+                              matrix_size,
+                              echo_spacing,
+                              outDir,False)
+
     #topup(merged_b0_all, acqparam, outDir)
     #applytopup(ap_b0_list[0], pa_b0_list[0], acqparam, outDir)
     #eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
