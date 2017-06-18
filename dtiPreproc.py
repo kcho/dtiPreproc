@@ -24,7 +24,7 @@ def getDTIdirectory(directory):
         for directory in dirs:
 
             if re.search('DTI_72D',directory,flags=re.IGNORECASE):
-                DTIdirectories.append(os.path.join(root,directory))
+                DTIdirectories.append(join(root,directory))
 
     return DTIdirectories
 
@@ -56,15 +56,15 @@ def nameChange(outputDir):
         data = ''.join([x for x in initialFiles if re.search('DTI.*AP.*nii.gz',x)][0])
         P2A_b0 = ''.join([x for x in initialFiles if re.search('DTI.*PA.*nii.gz',x)][0])
 
-        print os.path.join(outputDir,bval),os.path.join(outputDir,'bvals')
-        print os.path.join(outputDir,bvec),os.path.join(outputDir,'bvecs')
-        print os.path.join(outputDir,data),os.path.join(outputDir,'data.nii.gz')
-        print os.path.join(outputDir,P2A_b0),os.path.join(outputDir,'P2A_b0.nii.gz')
+        print join(outputDir,bval),join(outputDir,'bvals')
+        print join(outputDir,bvec),join(outputDir,'bvecs')
+        print join(outputDir,data),join(outputDir,'data.nii.gz')
+        print join(outputDir,P2A_b0),join(outputDir,'P2A_b0.nii.gz')
 
-        shutil.move(os.path.join(outputDir,bval),os.path.join(outputDir,'bvals'))
-        shutil.move(os.path.join(outputDir,bvec),os.path.join(outputDir,'bvecs'))
-        shutil.move(os.path.join(outputDir,data),os.path.join(outputDir,'data.nii.gz'))
-        shutil.move(os.path.join(outputDir,P2A_b0),os.path.join(outputDir,'P2A_b0.nii.gz'))
+        shutil.move(join(outputDir,bval),join(outputDir,'bvals'))
+        shutil.move(join(outputDir,bvec),join(outputDir,'bvecs'))
+        shutil.move(join(outputDir,data),join(outputDir,'data.nii.gz'))
+        shutil.move(join(outputDir,P2A_b0),join(outputDir,'P2A_b0.nii.gz'))
     except:
         pass
 
@@ -143,7 +143,7 @@ def getmat_b0(niftiImg, bval):
     #newData = nb.Nifti1Image(mean_b0_image, img.affine)
 
     #imgName = os.path.basename(niftiImg)
-    #outImgLoc = os.path.join(outDir, imgName)
+    #outImgLoc = join(outDir, imgName)
     #newData.to_filename(outImgLoc)
 
     #return outImgLoc
@@ -183,7 +183,7 @@ def getmat_b0(niftiImg, bval):
                 #os.popen(command).read()
 
         ## Merge B0s extracted from AP
-        #if not os.path.isfile(os.path.join(
+        #if not os.path.isfile(join(
                                 #outputDir,
                                 #'b0_images.nii.gz')):
             #if full:
@@ -238,13 +238,9 @@ def writeAcqParams(ap_b0_num, pa_b0_num, matrix_size, echo_spacing, outDir,full)
 
 
 def topup(merged_b0_all, acqparam, outDir):
-    print '\tRunning Topup, FSL'
-    print '\t--------------------------------'
-    if os.path.isfile(os.path.join(
-        outDir,
-        'unwarped_images.nii.gz')):
-        pass
-    else:
+    print('\tRunning Topup, FSL')
+    print('\t--------------------------------')
+    if not isfile(join(outDir,'unwarped_images.nii.gz')):
         command = 'topup --imain={b0_images} \
                 --datain={acq} \
                 --config=b02b0.cnf \
@@ -254,14 +250,12 @@ def topup(merged_b0_all, acqparam, outDir):
                         b0_images = merged_b0_all,
                         acq = acqparam, 
                         outDir=outDir)
-
-        output=os.popen(command).read()
-
+        print(re.sub('\s+', ' ', command))
+        #output=os.popen(command).read()
 
 def applytopup(ap_b0, pa_b0, acqparam, outDir):
-    print '\tApply Topup'
-    print '\t--------------------------------'
-
+    print('\tApply Topup')
+    print('\t--------------------------------')
     # inindex number
     # index number of the ap_b0 / pa_b0 image 
     # in the acqparam
@@ -271,11 +265,7 @@ def applytopup(ap_b0, pa_b0, acqparam, outDir):
     ap_b0_num = lines_strip.index(list(set(lines_strip))[0]) + 1 
     pa_b0_num = lines_strip.index(list(set(lines_strip))[1]) + 1
 
-    if os.path.isfile(os.path.join(
-        outDir,
-        'data_topup.nii.gz')):
-        pass
-    else:
+    if not isfile(join(outDir, 'data_topup.nii.gz')):
         command = 'applytopup \
                 --imain={ap_b0},{pa_b0} \
                 --datain={acq} \
@@ -288,76 +278,60 @@ def applytopup(ap_b0, pa_b0, acqparam, outDir):
                         ap_b0_num = ap_b0_num,
                         pa_b0_num = pa_b0_num,
                         acq = acqparam)
-        applyTopUpOutput = os.popen(command).read()
+        print(re.sub('\s+', ' ', command))
+        #applyTopUpOutput = os.popen(command).read()
 
 def eddy(ap_nifti_even, bvals, bvecs, acqparam, outDir):
-    print '\tEddy Correction'
-    print '\t--------------------------------'
-    if os.path.isfile(os.path.join(
-        outDir,
-        'eddy_unwarped_images.nii.gz')):
+    print('\tEddy Correction')
+    print('\t--------------------------------')
 
-        bet_mask = os.path.join(outDir,
-                                'hifi_nodif_brain_mask.nii.gz')
-        eddy_out = os.path.join(outDir, 
-                                'eddy_unwarped_images.nii.gz')
-    else:
-        ## mean of the corrected image
-        #mean(os.path.join(outDir,'b0_images'),
-                #os.path.join(outDir,'b0_images_mean'))
+    bet_mask = join(outDir, 'hifi_nodif_brain_mask.nii.gz')
+    eddy_out = join(outDir, 'eddy_unwarped_images.nii.gz')
 
-        # bet
-        bet_in = os.path.join(outDir,'hifi_nodif')
-        bet_out = os.path.join(outDir,'hifi_nodif_brain')
-        bet_mask = os.path.join(outDir,
-                                'hifi_nodif_brain_mask.nii.gz')
-        os.system('bet {inImg} {output} \
-                -c 54 56 32 \
-                -m -f 0.25'.format(inImg=bet_in, output=bet_out))
-        #os.system('bet {inImg} {output} -m'.format(
-            #inImg = os.path.join(outDir,'b0_images_mean'),
-            #output = os.path.join(outDir,'b0_images_mean_brain')))
+    # bet
+    bet_in = join(outDir,'hifi_nodif')
+    bet_out = join(outDir,'hifi_nodif_brain.nii.gz')
+    if not isfile(bet_out):
+        os.system('bet {inImg} {output} -m -f 0.25'.format(
+                                inImg=bet_in, output=bet_out))
 
-        # index
-        with open(bvals,'r') as f:
-            line = f.read()
-        vol_num = len(line.strip().split(' '))
+    # index
+    bvals_mat = np.loadtxt(bvals)
+    #with open(bvals,'r') as f:
+        #line = f.read()
+    vol_num = bvals_mat.shape[0]
 
-        # create an index file
-        # 70 --> number of volumes SCS project
-        index = ['1']*vol_num
-        index = ' '.join(index)
+    # create an index file
+    # 70 --> number of volumes SCS project
+    index = np.tile(1, vol_num)
+    index_loc = join(outDir, 'index.txt')
+    np.savetxt(index_loc, index, fmt='%d', newline=' ')
 
-        with open(os.path.join(outDir,'index.txt'),'w') as f:
-            f.write(index)
+    #eddy
+    command = 'eddy \
+            --imain={ap} \
+            --mask={outDir}/hifi_nodif_brain_mask \
+            --acqp={acq} \
+            --index={index_loc} \
+            --bvecs={bvecs} \
+            --bvals={bvals} \
+            --fwhm=0 \
+            --flm=quadratic \
+            --topup={outDir}/topup_results \
+            --out={eddy_out}'.format(
+                    ap = ap_nifti_even,
+                    acq = acqparam,
+                    index_loc = index_loc,
+                    bvecs = bvecs,
+                    bvals = bvals,
+                    outDir = outDir,
+                    eddy_out = eddy_out)
 
-        #eddy
-        command = 'eddy \
-                --imain={ap} \
-                --mask={outDir}/hifi_nodif_brain_mask \
-                --acqp={acq} \
-                --index={outDir}/index.txt \
-                --bvecs={bvecs} \
-                --bvals={bvals} \
-                --fwhm=0 \
-                --flm=quadratic \
-                --topup={outDir}/topup_results \
-                --out={outDir}/eddy_unwarped_images'.format(
-                        ap = ap_nifti_even,
-                        acq = acqparam,
-                        bvecs = bvecs,
-                        bvals = bvals,
-                        outDir=outDir)
+    print(re.sub('\s+', ' ', command))
+    if not isfile(eddy_out):
         eddyOutput = os.popen(command).read()
-        eddy_out = os.path.join(outDir, 
-                                'eddy_unwarped_images.nii.gz')
-        print eddyOutput
 
-    try:
-        return eddy_out, bet_mask
-    except:
-        return eddy_out, bet_mask
-
+    return eddy_out, bet_mask
 
 def mean(srcImg,trgImg):
     os.system('fslmaths {src} -Tmean {out}'.format(
@@ -391,6 +365,12 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
     ap_b0_nifti = getmat_b0(ap_nifti, ap_bval)
     pa_b0_nifti = getmat_b0(pa_nifti, pa_bval)
 
+    # save b0 maps
+    ap_b0_loc = join(outDir, 'ap_b0.nii.gz')
+    pa_b0_loc = join(outDir, 'pa_b0.nii.gz')
+    ap_b0_nifti.to_filename(ap_b0_loc)
+    pa_b0_nifti.to_filename(pa_b0_loc)
+
     ap_b0_data = ap_b0_nifti.get_data()
     pa_b0_data = pa_b0_nifti.get_data()
 
@@ -398,7 +378,7 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
     # Save to nifti
     merged_b0 = np.concatenate([ap_b0_data, pa_b0_data], axis=3)
     merged_b0_loc = join(outDir,'merged_b0.nii.gz')
-    nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
+    #nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
     
     # get matrix
     matrix_size = ap_b0_data.shape[0] 
@@ -412,9 +392,10 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
                               echo_spacing,
                               outDir,False)
 
-    topup(merged_b0_loc, acqparam, outDir)
-    #applytopup(ap_b0_list[0], pa_b0_list[0], acqparam, outDir)
-    #eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
+    topup(merged_b0_loc, acqparamLoc, outDir)
+    applytopup(ap_b0_loc, pa_b0_loc, acqparamLoc, outDir)
+
+    eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
     #dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
 
 
@@ -422,18 +403,18 @@ def get_dti_trio(Loc):
     for root, dirs, files in os.walk(Loc):
         for f in files:
             if 'nii' in f:
-                nifti = os.path.join(root, f)
+                nifti = join(root, f)
             if 'bvec' in f:
-                bvec = os.path.join(root, f)
+                bvec = join(root, f)
             if 'bval' in f:
-                bval = os.path.join(root, f)
+                bval = join(root, f)
     return nifti, bvec, bval
 
 def get_nifti(Loc):
     for root, dirs, files in os.walk(Loc):
         for f in files:
             if 'nii' in f:
-                nifti = os.path.join(root, f)
+                nifti = join(root, f)
                 return nifti
 
 
@@ -473,7 +454,7 @@ if __name__=='__main__':
             sys.exit('AP nifti file is missing')
 
         try:
-            pa_nifti = get_nifti(os.path.join(args.directory, i))
+            pa_nifti = get_nifti(join(args.directory, i))
         except:
             sys.exit('PA nifti file is missing')
 
