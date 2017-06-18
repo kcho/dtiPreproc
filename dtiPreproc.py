@@ -11,6 +11,55 @@ import argparse
 import nibabel as nb
 import numpy as np
 
+def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
+    '''
+    1. Make b0 images with even z slice number
+    2. Extract b0 maps from raw nifti files of AP / PA DTI
+    3. Merge AP b0 maps with PA b0 maps
+    4. Write acquisition parameter text file required for
+       topup, applytopup, eddy
+    5. Estimate susceptibility disortions(topup) from b0 images
+    6. Correct susceptibility distortions(applytopup) of b0 images
+    7. Correct raw data
+    '''
+
+    # make the number of z slice even
+    ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
+    pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
+
+    # get b0 maps in 4d nibabel format
+    ap_b0_nifti = getmat_b0(ap_nifti, ap_bval)
+    pa_b0_nifti = getmat_b0(pa_nifti, pa_bval)
+    # save b0 maps
+    ap_b0_loc = join(outDir, 'ap_b0.nii.gz')
+    pa_b0_loc = join(outDir, 'pa_b0.nii.gz')
+    ap_b0_nifti.to_filename(ap_b0_loc)
+    pa_b0_nifti.to_filename(pa_b0_loc)
+    # get b0 matrix
+    ap_b0_data = ap_b0_nifti.get_data()
+    pa_b0_data = pa_b0_nifti.get_data()
+
+    # Merge ap & pa b0 images
+    merged_b0 = np.concatenate([ap_b0_data, pa_b0_data], axis=3)
+    merged_b0_loc = join(outDir,'merged_b0.nii.gz')
+    nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
+    
+    # get matrix
+    matrix_size = ap_b0_data.shape[0] 
+    # get echo spacing
+    echo_spacing = 0.77 # KJS2 protocol & SNU tDCS diabetes
+
+    acqparamLoc = writeAcqParams(ap_b0_data.shape[3], 
+                              pa_b0_data.shape[3],
+                              matrix_size,
+                              echo_spacing,
+                              outDir,False)
+
+    topup(merged_b0_loc, acqparamLoc, outDir)
+    applytopup(ap_b0_loc, pa_b0_loc, acqparamLoc, outDir)
+
+    eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
+    dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
 
 def getDTIdirectory(directory):
     '''
@@ -116,97 +165,6 @@ def getmat_b0(niftiImg, bval):
     b0_data = data[:,:,:,b0_indexArray]
     img = nb.Nifti1Image(b0_data, f.affine)
     return img
-
-#def extractMeanB0images(niftiImg,bval, outDir):
-    #img = nb.load(niftiImg)
-    #imgData = img.get_data()
-
-    #if bval:
-        #with open(bval, 'r') as f:
-            #bvals = f.read().split(' ')
-
-        #bvalsArray = np.array(bvals)
-        #b0_indexArray = np.arange(len(bvalsArray))[bvalsArray=='0']
-
-    #else:
-        #try:
-            #b0_indexArray = range(imgData.shape[3])
-        #except:
-            #b0_indexArray = [0]
-
-    #all_b0_imgData = np.zeros_like(imgData[:,:,:,0])
-    #for b0_index in b0_indexArray:
-        #b0_data = imgData[:,:,:,b0_index]
-        #all_b0_imgData = all_b0_imgData + b0_data
-
-    #mean_b0_image = all_b0_imgData / len(b0_indexArray)
-    #newData = nb.Nifti1Image(mean_b0_image, img.affine)
-
-    #imgName = os.path.basename(niftiImg)
-    #outImgLoc = join(outDir, imgName)
-    #newData.to_filename(outImgLoc)
-
-    #return outImgLoc
-    
-
-#def extractB0images():
-
-    ##if old:
-        ##command = 'fslroi {outputDir}/data.nii.gz \
-                ##{outputDir}/nodif.nii.gz \
-                ##{0} 1'.format(b0Num,
-                ##outputDir=outputDir)
-        ##os.popen(command).read()
-
-    ##else:
-        ## full version
-        ## extract the b0 images that were taken between the diffusion weighted images
-        #if full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 9:
-            #b0Nums = [0,1,10,19,28,37,46,55,64]
-
-            ## for all the sequences of the b0 images
-            #for b0Num in b0Nums:
-                #command = 'fslroi {outputDir}/data_even \
-                        #{outputDir}/A2P_b0_{0} \
-                        #{0} 1'.format(b0Num,
-                        #outputDir=outputDir)
-                #os.popen(command).read()
-
-        ## non full version
-        #elif not full and len([x for x in os.listdir(outputDir) if x.startswith('A2P_b0_')]) != 2:
-            #b0Nums = [0,1] # Two B0s from A >> P
-            #for b0Num in b0Nums:
-                #command = 'fslroi {outputDir}/data_even \
-                        #{outputDir}/A2P_b0_{0} \
-                        #{0} 1'.format(b0Num,
-                        #outputDir=outputDir)
-                #os.popen(command).read()
-
-        ## Merge B0s extracted from AP
-        #if not os.path.isfile(join(
-                                #outputDir,
-                                #'b0_images.nii.gz')):
-            #if full:
-                #command = 'fslmerge -t {outputDir}/b0_images \
-                        #{outputDir}/*_b0*'.format(
-                                        #outputDir=outputDir)
-                #os.popen(command).read()
-            #else:
-                ## Two images of P2A b0
-                #b0Nums = [0,1] # Two B0s from A >> P
-                #for b0Num in b0Nums:
-                    #command = 'fslroi {outputDir}/P2A_b0_even \
-                            #{outputDir}/P2A_b0_{0} \
-                            #{0} 1'.format(b0Num,
-                            #outputDir=outputDir)
-                    #os.popen(command).read()
-
-                ##merge above two mean images
-                #command = 'fslmerge -t {outputDir}/b0_images \
-                        #{outputDir}/[PA]2[AP]_b0_[[:digit:]]*.nii.gz'.format(
-                                        #outputDir=outputDir)
-                #fslmathsOutput = os.popen(command).read()
-
 
 def writeAcqParams(ap_b0_num, pa_b0_num, matrix_size, echo_spacing, outDir,full):
     '''
@@ -343,18 +301,14 @@ def eddy(ap_nifti_even, bvals, bvecs, acqparam, outDir):
 
     bet_mask = join(outDir, 'hifi_nodif_brain_mask.nii.gz')
     eddy_out = join(outDir, 'eddy_unwarped_images.nii.gz')
-
     # bet
     bet_in = join(outDir,'hifi_nodif')
     bet_out = join(outDir,'hifi_nodif_brain.nii.gz')
     if not isfile(bet_out):
         os.system('bet {inImg} {output} -m -f 0.25'.format(
                                 inImg=bet_in, output=bet_out))
-
     # index
     bvals_mat = np.loadtxt(bvals)
-    #with open(bvals,'r') as f:
-        #line = f.read()
     vol_num = bvals_mat.shape[0]
 
     # create an index file
@@ -410,56 +364,6 @@ def dtifit(eddy_out, mask, bvecs, bvals, outName, outDir):
                     outName=outName)
     print(os.popen(command).read())
 
-def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
-    '''
-    1. Make b0 images with even z slice number
-    2. Extract b0 maps from raw nifti files of AP / PA DTI
-    3. Merge AP b0 maps with PA b0 maps
-    4. Write acquisition parameter text file required for
-       topup, applytopup, eddy
-    5. Estimate susceptibility disortions(topup) from b0 images
-    6. Correct susceptibility distortions(applytopup) of b0 images
-    7. Correct raw data
-    '''
-
-    # make the number of z slice even
-    ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
-    pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
-
-    # get b0 maps in 4d nibabel format
-    ap_b0_nifti = getmat_b0(ap_nifti, ap_bval)
-    pa_b0_nifti = getmat_b0(pa_nifti, pa_bval)
-    # save b0 maps
-    ap_b0_loc = join(outDir, 'ap_b0.nii.gz')
-    pa_b0_loc = join(outDir, 'pa_b0.nii.gz')
-    ap_b0_nifti.to_filename(ap_b0_loc)
-    pa_b0_nifti.to_filename(pa_b0_loc)
-    # get b0 matrix
-    ap_b0_data = ap_b0_nifti.get_data()
-    pa_b0_data = pa_b0_nifti.get_data()
-
-    # Merge ap & pa b0 images
-    merged_b0 = np.concatenate([ap_b0_data, pa_b0_data], axis=3)
-    merged_b0_loc = join(outDir,'merged_b0.nii.gz')
-    nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
-    
-    # get matrix
-    matrix_size = ap_b0_data.shape[0] 
-
-    # get echo spacing
-    echo_spacing = 0.77 # KJS2 protocol & SNU tDCS diabetes
-
-    acqparamLoc = writeAcqParams(ap_b0_data.shape[3], 
-                              pa_b0_data.shape[3],
-                              matrix_size,
-                              echo_spacing,
-                              outDir,False)
-
-    topup(merged_b0_loc, acqparamLoc, outDir)
-    applytopup(ap_b0_loc, pa_b0_loc, acqparamLoc, outDir)
-
-    eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
-    dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
 
 def get_dti_trio(Loc):
     for root, dirs, files in os.walk(Loc):
