@@ -254,11 +254,67 @@ def topup(merged_b0_all, acqparam, outDir):
         #output=os.popen(command).read()
 
 def applytopup(ap_b0, pa_b0, acqparam, outDir):
+    '''
+    Example from FSL website
+        fslroi fmrib29_bup b0_1_bup 0 1 
+        fslroi fmrib31_bup b0_2_bup 0 1 
+        fslroi fmrib29_bdn b0_1_bdn 0 1 
+        fslroi fmrib31_bdn b0_2_bdn 0 1 
+
+        fslmerge -t all_my_b0 \
+                b0_1_bup \
+                b0_2_bup \
+                b0_1_bdn \
+                b0_2_bdn 
+
+        Acquiparam
+            0 1 0 0.087 
+            0 1 0 0.087 
+            0 -1 0 0.087
+            0 -1 0 0.087
+
+        topup --imain=all_my_b0 \
+              --datatin=my_acqu_para.txt \
+              --config=my_nifty_parameters \
+              --out=my_topup_output
+
+        applytopup \
+                --imain=fmrib29_bup,fmrib29_bdn \
+                --datain=my_acqu_para.txt \
+                --inindex=1,3 \
+                --topup=my_topup_output \
+                --out=fmrib29_hifi 
+
+        applytopup \
+                --imain=fmrib31_bup,fmrib31_bdn \
+                --datain=my_acqu_para.txt \
+                --inindex=2,4 \
+                --topup=my_topup_output \
+                --out=fmrib31_hifi
+
+        SINCE THAT WOULD HAVE LED TO AVERAGING ACROSS DATA ACQUIRED 
+        WITH DIFFERENT DIFFUSION GRADIENTS. THE BELOW IS NOT VALID.
+
+        applytopup \
+                --imain=fmrib29_bup,fmrib29_bdn,fmrib31_bup,fmrib31_bdn \
+                --datain=my_acqu_para.txt \
+                --inindex=1,3,2,4 \
+                --topup=my_topup_output \
+                --out=fmrib_anything_but_hifi 
+    '''
     print('\tApply Topup')
     print('\t--------------------------------')
+
     # inindex number
     # index number of the ap_b0 / pa_b0 image 
     # in the acqparam
+
+    acqparam_mat = np.loadtxt(acqparam)
+    unique_rows = np.vstack({tuple(row) for row in acqparam_mat})
+
+    ap_b0_index = np.where(np.all(acqparam_mat==unique_rows[0], axis=1))[0]
+    pa_b0_index = np.where(np.all(acqparam_mat==unique_rows[1], axis=1))[0]
+
     with open(acqparam, 'r') as f:
         lines = f.readlines()
     lines_strip = [x.strip() for x in lines]
@@ -339,8 +395,8 @@ def mean(srcImg,trgImg):
         out=trgImg))
 
 def dtifit(eddy_out, mask, bvecs, bvals, outName, outDir):
-    print '\tDTIFIT : scalar map calculation'
-    print '\t--------------------------------'
+    print('\tDTIFIT : scalar map calculation')
+    print('\t--------------------------------')
     command = 'dtifit \
             -k {eddy_out} \
             -m {mask} \
@@ -352,11 +408,20 @@ def dtifit(eddy_out, mask, bvecs, bvals, outName, outDir):
                     bvecs=bvecs,
                     bvals=bvals,
                     outName=outName)
-    print os.popen(command).read()
-
-
+    print(os.popen(command).read())
 
 def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
+    '''
+    1. Make b0 images with even z slice number
+    2. Extract b0 maps from raw nifti files of AP / PA DTI
+    3. Merge AP b0 maps with PA b0 maps
+    4. Write acquisition parameter text file required for
+       topup, applytopup, eddy
+    5. Estimate susceptibility disortions(topup) from b0 images
+    6. Correct susceptibility distortions(applytopup) of b0 images
+    7. Correct raw data
+    '''
+
     # make the number of z slice even
     ap_nifti_even = makeEvenNumB0(ap_nifti, outDir)
     pa_nifti_even = makeEvenNumB0(pa_nifti, outDir)
@@ -364,21 +429,19 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
     # get b0 maps in 4d nibabel format
     ap_b0_nifti = getmat_b0(ap_nifti, ap_bval)
     pa_b0_nifti = getmat_b0(pa_nifti, pa_bval)
-
     # save b0 maps
     ap_b0_loc = join(outDir, 'ap_b0.nii.gz')
     pa_b0_loc = join(outDir, 'pa_b0.nii.gz')
     ap_b0_nifti.to_filename(ap_b0_loc)
     pa_b0_nifti.to_filename(pa_b0_loc)
-
+    # get b0 matrix
     ap_b0_data = ap_b0_nifti.get_data()
     pa_b0_data = pa_b0_nifti.get_data()
 
     # Merge ap & pa b0 images
-    # Save to nifti
     merged_b0 = np.concatenate([ap_b0_data, pa_b0_data], axis=3)
     merged_b0_loc = join(outDir,'merged_b0.nii.gz')
-    #nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
+    nb.Nifti1Image(merged_b0, ap_b0_nifti.affine).to_filename(merged_b0_loc)
     
     # get matrix
     matrix_size = ap_b0_data.shape[0] 
@@ -396,8 +459,7 @@ def dtiPreproc(ap_nifti, ap_bvec, ap_bval, pa_nifti, pa_bvec, pa_bval, outDir):
     applytopup(ap_b0_loc, pa_b0_loc, acqparamLoc, outDir)
 
     eddy_out, mask = eddy(ap_nifti_even, ap_bval, ap_bvec, acqparam, outDir)
-    #dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
-
+    dtifit(eddy_out, mask, ap_bvec, ap_bval, 'dti', outDir)
 
 def get_dti_trio(Loc):
     for root, dirs, files in os.walk(Loc):
